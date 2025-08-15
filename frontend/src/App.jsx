@@ -19,17 +19,22 @@ function App() {
   const measureRafRef = useRef(null);
   const [lastUpdateTs, setLastUpdateTs] = useState(null);
   
-  // Helper function to format crypto prices
+  // Helper function to format crypto prices with proper comma separation
   const formatNumber = (num) => {
     if (num >= 1000) {
-      return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      // Format with commas and 2 decimal places
+      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     } else if (num >= 1) {
+      // Format with 2 decimal places
       return num.toFixed(2);
     } else if (num >= 0.01) {
+      // Small values with 4 decimal places
       return num.toFixed(4);
     } else if (num >= 0.0001) {
+      // Very small values with 6 decimal places
       return num.toFixed(6);
     } else {
+      // Extremely small values in scientific notation
       return num.toExponential(2);
     }
   };
@@ -407,22 +412,21 @@ function App() {
         <div className="flex flex-col">
           {/* Tick-by-tick Cryptocurrency Container - At the top */}
           <div className="ticker-container" style={{ backgroundColor: '#0F0F0F', borderBottom: '1px solid #2d3748' }}>
-            <div className="ticker-wrapper overflow-hidden h-full">
-              <div className="ticker-content continuous-scroll flex items-center h-full whitespace-nowrap">
-                {/* First set of tickers */}
+            <div className="ticker-wrapper">
+              <div className="ticker-content continuous-scroll">
+                {/* First set of tickers with exact formatting */}
                 {cryptoData
                   .filter(crypto => !['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD'].includes(crypto.symbol))
                   .sort((a, b) => a.rank - b.rank)
                   .slice(0, 50)
-                  .map((crypto, index) => (
-                    <span key={`first-${crypto.symbol}`} className="inline-flex items-center px-3">
-                      <span className="text-xs text-gray-500 mr-1">#{crypto.rank}</span>
-                      <span className="font-semibold text-white">{crypto.symbol}</span>
-                      <span className="ml-2 text-white">${formatNumber(crypto.price)}</span>
-                      <span className="ml-1" style={{ 
+                  .map((crypto) => (
+                    <span key={`first-${crypto.symbol}`} className="ticker-item">
+                      <span className="ticker-symbol">"{crypto.symbol}"</span>
+                      <span className="ticker-price">${formatNumber(crypto.price)}</span>
+                      <span className="ticker-change" style={{ 
                         color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
                       }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
-                      <span className="mx-3" style={{ color: '#4a5568' }}>•</span>
+                      <span className="ticker-separator">•</span>
                     </span>
                   ))}
                 {/* Duplicate for seamless loop */}
@@ -430,63 +434,60 @@ function App() {
                   .filter(crypto => !['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD'].includes(crypto.symbol))
                   .sort((a, b) => a.rank - b.rank)
                   .slice(0, 50)
-                  .map((crypto, index) => (
-                    <span key={`second-${crypto.symbol}`} className="inline-flex items-center px-3">
-                      <span className="text-xs text-gray-500 mr-1">#{crypto.rank}</span>
-                      <span className="font-semibold text-white">{crypto.symbol}</span>
-                      <span className="ml-2 text-white">${formatNumber(crypto.price)}</span>
-                      <span className="ml-1" style={{ 
+                  .map((crypto) => (
+                    <span key={`second-${crypto.symbol}`} className="ticker-item">
+                      <span className="ticker-symbol">"{crypto.symbol}"</span>
+                      <span className="ticker-price">${formatNumber(crypto.price)}</span>
+                      <span className="ticker-change" style={{ 
                         color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
                       }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
-                      <span className="mx-3" style={{ color: '#4a5568' }}>•</span>
+                      <span className="ticker-separator">•</span>
                     </span>
                   ))}
               </div>
             </div>
           </div>
           
-          {/* Bitcoin Price Container - In the middle, exact same height as crypto feed */}
-          <div className="bitcoin-ticker border-b border-gray-700 flex-shrink-0" style={{ backgroundColor: '#0F0F0F', height: '40px' }}>
-            <div ref={btcRowRef} className="flex items-center h-full text-sm w-full" style={{ padding: '0 16px' }}>
-              {/* Asset Name and Price */}
-              <div ref={btcLeftRef} className="flex items-center space-x-2 whitespace-nowrap shrink-0">
-                <span className="font-semibold text-white">Bitcoin (BTC)</span>
+          {/* Bitcoin Price Container - New Format: Bitcoin (BTC) $97,420.15 (+2.34% 1H) (+5.67% 24H) (+12.89% 7D) */}
+          <div className="bitcoin-ticker border-b border-gray-700 flex-shrink-0" style={{ 
+            backgroundColor: '#0F0F0F', 
+            height: '40px',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+            fontSize: '17px',
+            lineHeight: '40px'
+          }}>
+            <div ref={btcRowRef} className="flex items-center h-full w-full" style={{ padding: '0 16px' }}>
+              {/* Bitcoin (BTC) Name and Price */}
+              <div className="flex items-center">
+                <span className="font-medium text-white mr-3">Bitcoin (BTC)</span>
                 <span
                   className="text-white font-normal px-1 rounded"
-                  style={{ backgroundColor: btcFlash === 'green' ? '#00D96420' : btcFlash === 'red' ? '#FF373720' : 'transparent', transition: 'background-color 200ms ease' }}
+                  style={{ 
+                    backgroundColor: btcFlash === 'green' ? '#00D96420' : btcFlash === 'red' ? '#FF373720' : 'transparent', 
+                    transition: 'background-color 200ms ease' 
+                  }}
                 >
                   {formatDollars(bitcoinData.price)}
                 </span>
-              </div>
-              
-              {/* Time-based Changes */}
-              <div ref={btcTimeRef} className="ticker-timeframes flex items-center ml-auto">
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-400">1h</span>
-                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change1h) }}>{bitcoinData.change1h}</span>
-                </div>
-                <span className="mx-2 text-gray-500">•</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-400">24h</span>
-                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change24h) }}>{bitcoinData.change24h}</span>
-                </div>
-                <span className="mx-2 text-gray-500">•</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-400">7d</span>
-                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change7d) }}>{bitcoinData.change7d}</span>
-                </div>
-                <span className="mx-2 text-gray-500">•</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-400 ticker-30d">30d</span>
-                  <span className="min-w-[62px] text-right tabular-nums ticker-30d" style={{ color: getChangeHex(bitcoinData.change30d) }}>{bitcoinData.change30d}</span>
-                </div>
+                
+                {/* Time-based Changes in new format */}
+                <span className="ml-4 text-white">
+                  <span style={{ color: getChangeHex(bitcoinData.change1h) }}>
+                    ({bitcoinData.change1h} 1H)
+                  </span>
+                  <span className="ml-2" style={{ color: getChangeHex(bitcoinData.change24h) }}>
+                    ({bitcoinData.change24h} 24H)
+                  </span>
+                  <span className="ml-2" style={{ color: getChangeHex(bitcoinData.change7d) }}>
+                    ({bitcoinData.change7d} 7D)
+                  </span>
+                </span>
               </div>
 
               {/* Last update timestamp */}
-              <div className="ml-4 text-xs text-gray-500 shrink-0 hidden lg:block">
+              <div className="ml-auto text-xs text-gray-500 shrink-0 hidden lg:block">
                 {lastUpdateTs ? `Updated ${lastUpdateTs.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}` : ''}
               </div>
-
             </div>
           </div>
         </div>

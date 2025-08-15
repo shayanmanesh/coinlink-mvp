@@ -142,12 +142,14 @@ class CoinbaseWebSocketManager:
     }
     
     def __init__(self):
-        self.ws_url = "wss://advanced-trade-ws.coinbase.com"
-        self.rest_url = "https://api.coinbase.com/api/v3/brokerage"
+        # Use public WebSocket feed for real-time data
+        self.ws_url = "wss://ws-feed.exchange.coinbase.com"
+        self.rest_url = "https://api.exchange.coinbase.com"
         self.crypto_data: Dict[str, CryptoData] = {}
         self.ws_connection = None
         self.update_callbacks = []
         self.running = False
+        self.subscribed_products = []
         
     def generate_signature(self, timestamp: str, channel: str, products: List[str]) -> str:
         """Generate JWT signature for Coinbase Advanced Trade API"""
@@ -219,22 +221,36 @@ class CoinbaseWebSocketManager:
         return price * supply
     
     async def connect(self):
-        """Establish WebSocket connection to Coinbase"""
+        """Establish WebSocket connection to Coinbase public feed"""
         try:
             self.ws_connection = await websockets.connect(self.ws_url)
             
-            # Subscribe to ticker channel for all products
-            product_ids = [product_id for _, _, product_id in self.TOP_50_SYMBOLS]
+            # Get product IDs for subscription
+            product_ids = [product_id for _, _, product_id in self.TOP_50_SYMBOLS if product_id]
+            self.subscribed_products = product_ids
             
+            # Subscribe to ticker channel (public feed doesn't require auth)
             subscribe_message = {
                 "type": "subscribe",
-                "product_ids": product_ids,
-                "channel": "ticker",
-                "jwt": self._generate_jwt_token() if settings.COINBASE_KEY_JSON else None
+                "product_ids": product_ids[:20],  # Coinbase limits to 20 products per subscription
+                "channels": ["ticker"]
             }
             
             await self.ws_connection.send(json.dumps(subscribe_message))
-            logger.info(f"Subscribed to {len(product_ids)} cryptocurrency feeds")
+            logger.info(f"Subscribed to first batch of cryptocurrency feeds")
+            
+            # Subscribe to remaining products in batches
+            for i in range(20, len(product_ids), 20):
+                batch = product_ids[i:i+20]
+                if batch:
+                    subscribe_message = {
+                        "type": "subscribe",
+                        "product_ids": batch,
+                        "channels": ["ticker"]
+                    }
+                    await self.ws_connection.send(json.dumps(subscribe_message))
+                    await asyncio.sleep(0.1)  # Small delay between subscriptions
+                    logger.info(f"Subscribed to batch {i//20 + 1} of cryptocurrency feeds")
             
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")

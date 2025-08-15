@@ -1,6 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global font family */
+* {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
 /* Align numeric columns nicely */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
@@ -31,6 +38,9 @@
   border-bottom: 1px solid #2d3748;
   overflow: hidden;
   z-index: 10;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 17px;
+  line-height: 40px;
 }
 
 .ticker-wrapper {
@@ -38,11 +48,14 @@
   height: 100%;
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .ticker-content {
   display: flex;
-  animation: ticker 120s linear infinite;
+  align-items: center;
+  white-space: nowrap;
   padding-left: 100%;
 }
 
@@ -71,6 +84,37 @@
 
 .ticker-30d {
   font-size: 0.875rem;
+}
+
+/* Ticker element precise spacing */
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  white-space: nowrap;
+}
+
+.ticker-symbol {
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+
+.ticker-price {
+  margin-left: 14px;
+  font-weight: 400;
+  color: #ffffff;
+}
+
+.ticker-change {
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.ticker-separator {
+  margin: 0 22px;
+  color: #4a5568;
+  font-weight: 400;
 }
 
 /* Chart wrapper aligns with ticker padding */
@@ -124,7 +168,10 @@ body {
   height: 100%;
 }
 
-/* Cryptocurrency ticker animation - continuous smooth scroll */
+/* Cryptocurrency ticker animation - 30px/second speed */
+/* For 50 items at ~200px each = 10000px total width */
+/* Duration = 10000px / 30px per second = 333s for full loop */
+/* Since we duplicate content, actual animation is 167s for 50% scroll */
 @keyframes continuous-ticker {
   0% {
     transform: translateX(0);
@@ -135,7 +182,7 @@ body {
 }
 
 .continuous-scroll {
-  animation: continuous-ticker 120s linear infinite;
+  animation: continuous-ticker 167s linear infinite;
   will-change: transform;
 }
 
