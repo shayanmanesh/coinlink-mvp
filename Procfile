@@ -1,1 +1,1 @@
-web: cd backend && python -m uvicorn api.main_production:app --host 0.0.0.0 --port ${PORT:-8000}
+web: python -m uvicorn backend.api.main_production:app --host 0.0.0.0 --port ${PORT:-8000}
