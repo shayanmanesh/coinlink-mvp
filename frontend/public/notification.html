@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Notification Sound</title>
+</head>
+<body>
+    <h1>Notification Sound Generator</h1>
+    <button onclick="playNotification()">Test Notification Sound</button>
+    <button onclick="downloadSound()">Download as notification.mp3</button>
+    
+    <script>
+        // Create a simple notification sound using Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function createNotificationSound() {
+            const duration = 0.3;
+            const sampleRate = audioContext.sampleRate;
+            const numSamples = duration * sampleRate;
+            
+            // Create buffer for stereo sound
+            const buffer = audioContext.createBuffer(2, numSamples, sampleRate);
+            
+            // Generate a pleasant notification tone (two-tone chime)
+            for (let channel = 0; channel < 2; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                for (let i = 0; i < numSamples; i++) {
+                    const t = i / sampleRate;
+                    // First tone: 880Hz (A5)
+                    let sample = 0;
+                    if (t < 0.15) {
+                        sample = Math.sin(2 * Math.PI * 880 * t) * Math.exp(-t * 3);
+                    }
+                    // Second tone: 1320Hz (E6)
+                    if (t >= 0.15) {
+                        sample = Math.sin(2 * Math.PI * 1320 * (t - 0.15)) * Math.exp(-(t - 0.15) * 3);
+                    }
+                    channelData[i] = sample * 0.3; // Reduce volume
+                }
+            }
+            
+            return buffer;
+        }
+        
+        function playNotification() {
+            const buffer = createNotificationSound();
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+        
+        function downloadSound() {
+            alert('To create an mp3 file: Use browser developer tools to record the audio, or use an online tone generator to create a notification sound.');
+        }
+    </script>
+</body>
+</html>

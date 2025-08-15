@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { bitcoinAPI, systemAPI } from '../services/api';
 import { alerts$, connectRealtime } from '../services/realtime';
+import audioService from '../services/audioService';
+import AudioControls from './AudioControls';
 
 const Chat = ({ isConnected }) => {
   const [messages, setMessages] = useState([]);
@@ -53,6 +55,8 @@ const Chat = ({ isConnected }) => {
             }]);
             setHasNewAlert(true);
             setTimeout(() => setHasNewAlert(false), 4000);
+            // Play alert sound for agent messages
+            audioService.playAlert();
             // Scroll will auto-run via messages effect
           }
         }
@@ -114,6 +118,8 @@ const Chat = ({ isConnected }) => {
             sessionId: sessionId  // Add this line
           };
           setMessages(prev => [...prev, systemMessage]);
+          // Play sound for user input needed
+          audioService.playUserInputNeeded();
         } else if (response && response.type === 'chat' && response.bot_response) {
           // Handle normal chat
           setIsPasswordStep(false);
@@ -127,6 +133,8 @@ const Chat = ({ isConnected }) => {
 
           console.log('Adding bot message:', botMessage);
           setMessages(prev => [...prev, botMessage]);
+          // Play sound for task completion
+          audioService.playTaskComplete();
         } else {
           throw new Error('Invalid response format from chat API');
         }
@@ -141,6 +149,8 @@ const Chat = ({ isConnected }) => {
           sessionId: sessionId  // Add this line
         };
         setMessages(prev => [...prev, errorMessage]);
+        // Play error sound
+        audioService.playError();
       } finally {
         setIsLoading(false);
       }
@@ -183,11 +193,14 @@ const Chat = ({ isConnected }) => {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="text-white border-b border-gray-700" style={{ backgroundColor: '#0F0F0F' }}>
-        <div className="max-w-3xl mx-auto px-4 py-3 font-bold text-lg flex items-center justify-start gap-2">
-          <span>Coinlink</span>
-          {hasNewAlert && (
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" title="New alert" />
-          )}
+        <div className="max-w-3xl mx-auto px-4 py-3 font-bold text-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>Coinlink</span>
+            {hasNewAlert && (
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" title="New alert" />
+            )}
+          </div>
+          <AudioControls />
         </div>
       </div>
 

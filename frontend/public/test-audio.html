@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Notification Test</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            padding: 40px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00D964;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #1a1a1a;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #00D964;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #00C955;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .error-btn {
+            background: #FF3737;
+            color: #fff;
+        }
+        .error-btn:hover {
+            background: #E62E2E;
+        }
+        .input-btn {
+            background: #4A90E2;
+            color: #fff;
+        }
+        .input-btn:hover {
+            background: #3A7FD2;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #0F0F0F;
+            border-radius: 6px;
+            border: 1px solid #2d3748;
+        }
+        .success {
+            color: #00D964;
+        }
+        .error {
+            color: #FF3737;
+        }
+        .info {
+            color: #4A90E2;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔊 CoinLink Audio Notification Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Notification Sounds</h2>
+        <p>Click the buttons below to test different notification sounds:</p>
+        
+        <button onclick="testTaskComplete()">✅ Task Complete</button>
+        <button onclick="testError()" class="error-btn">❌ Error Occurred</button>
+        <button onclick="testUserInput()" class="input-btn">📝 User Input Needed</button>
+        
+        <div id="status" class="status">
+            Ready to test sounds. Make sure your volume is on!
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Audio File Check</h2>
+        <p>Direct audio file test:</p>
+        <audio id="audioElement" controls>
+            <source src="/done.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const audioElement = document.getElementById('audioElement');
+        
+        // Check if audio file exists
+        fetch('/done.mp3')
+            .then(response => {
+                if (response.ok) {
+                    updateStatus('✅ Audio file found at /done.mp3', 'success');
+                } else {
+                    updateStatus('❌ Audio file not found at /done.mp3', 'error');
+                }
+            })
+            .catch(error => {
+                updateStatus('❌ Error checking audio file: ' + error.message, 'error');
+            });
+
+        function updateStatus(message, type = 'info') {
+            statusDiv.innerHTML = `<span class="${type}">${message}</span>`;
+        }
+
+        function playSound() {
+            try {
+                const audio = new Audio('/done.mp3');
+                audio.volume = 0.5;
+                
+                const playPromise = audio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('Sound played successfully');
+                        })
+                        .catch(error => {
+                            console.error('Error playing sound:', error);
+                            updateStatus('❌ Error playing sound: ' + error.message, 'error');
+                        });
+                }
+                
+                return audio;
+            } catch (error) {
+                updateStatus('❌ Error creating audio: ' + error.message, 'error');
+                return null;
+            }
+        }
+
+        function testTaskComplete() {
+            updateStatus('🎵 Playing Task Complete sound...', 'success');
+            const audio = playSound();
+            if (audio) {
+                audio.volume = 0.5;
+                audio.addEventListener('ended', () => {
+                    updateStatus('✅ Task Complete sound played successfully!', 'success');
+                });
+            }
+        }
+
+        function testError() {
+            updateStatus('🎵 Playing Error sound...', 'error');
+            const audio = playSound();
+            if (audio) {
+                audio.volume = 0.6;
+                audio.addEventListener('ended', () => {
+                    updateStatus('❌ Error sound played successfully!', 'error');
+                });
+            }
+        }
+
+        function testUserInput() {
+            updateStatus('🎵 Playing User Input Needed sound...', 'info');
+            const audio = playSound();
+            if (audio) {
+                audio.volume = 0.4;
+                audio.addEventListener('ended', () => {
+                    updateStatus('📝 User Input sound played successfully!', 'info');
+                });
+            }
+        }
+
+        // Test on page load
+        window.addEventListener('load', () => {
+            console.log('Audio test page loaded');
+            
+            // Check audio element
+            audioElement.addEventListener('canplaythrough', () => {
+                console.log('Audio element can play');
+            });
+            
+            audioElement.addEventListener('error', (e) => {
+                console.error('Audio element error:', e);
+                updateStatus('❌ Audio element error: ' + e.message, 'error');
+            });
+        });
+    </script>
+</body>
+</html>
