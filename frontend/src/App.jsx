@@ -388,53 +388,34 @@ function App() {
         <div className="flex flex-col">
           {/* Tick-by-tick Cryptocurrency Container - At the top */}
           <div className="ticker-container" style={{ backgroundColor: '#0F0F0F', borderBottom: '1px solid #2d3748' }}>
-            <div className="bitcoin-ticker">
-              <div className="flex items-center space-x-2 whitespace-nowrap shrink-0">
-                <span className="font-semibold text-white">Bitcoin (BTC)</span>
-                <span
-                  className="text-white font-normal px-1 rounded"
-                  style={{ backgroundColor: btcFlash === 'green' ? '#00D96420' : btcFlash === 'red' ? '#FF373720' : 'transparent', transition: 'background-color 200ms ease' }}
-                >
-                  {bitcoinData.price}
-                </span>
-              </div>
-              <div className="ticker-timeframes">
-                <div className="flex items-center space-x-1 shrink-0">
-                  <span className="text-gray-400">1h</span>
-                  <span className="min-w-[44px] text-right" style={{ color: bitcoinData.change1h.startsWith('+') ? '#00D964' : bitcoinData.change1h.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>
-                    {bitcoinData.change1h}
+            <div className="ticker-wrapper overflow-hidden h-full">
+              <div className="ticker-content animate-ticker flex items-center h-full whitespace-nowrap">
+                {cryptoData.filter(crypto => crypto.symbol !== 'USDT' && crypto.symbol !== 'USDC' && crypto.symbol !== 'DAI').map((crypto, index) => (
+                  <span key={index} className="inline-flex items-center px-2">
+                    <span className="font-semibold text-white">{crypto.symbol}</span>
+                    <span className="ml-2 text-white">{crypto.price}</span>
+                    <span className="ml-1" style={{ color: crypto.change.startsWith('+') ? '#00D964' : crypto.change.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>({crypto.change})</span>
+                    {index < cryptoData.length - 1 && <span className="mx-3" style={{ color: '#4a5568' }}>•</span>}
                   </span>
-                </div>
-                <span className="mx-2 text-gray-500 shrink-0">•</span>
-                <div className="flex items-center space-x-1 shrink-0">
-                  <span className="text-gray-400">24h</span>
-                  <span className="min-w-[44px] text-right" style={{ color: bitcoinData.change24h.startsWith('+') ? '#00D964' : bitcoinData.change24h.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>
-                    {bitcoinData.change24h}
+                ))}
+                {/* Duplicate for continuous scroll */}
+                {cryptoData.filter(crypto => crypto.symbol !== 'USDT' && crypto.symbol !== 'USDC' && crypto.symbol !== 'DAI').map((crypto, index) => (
+                  <span key={`dup-${index}`} className="inline-flex items-center px-2">
+                    <span className="font-semibold text-white">{crypto.symbol}</span>
+                    <span className="ml-2 text-white">{crypto.price}</span>
+                    <span className="ml-1" style={{ color: crypto.change.startsWith('+') ? '#00D964' : crypto.change.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>({crypto.change})</span>
+                    {index < cryptoData.length - 1 && <span className="mx-3" style={{ color: '#4a5568' }}>•</span>}
                   </span>
-                </div>
-                <span className="mx-2 text-gray-500 shrink-0">•</span>
-                <div className="flex items-center space-x-1 shrink-0">
-                  <span className="text-gray-400">7d</span>
-                  <span className="min-w-[44px] text-right" style={{ color: bitcoinData.change7d.startsWith('+') ? '#00D964' : bitcoinData.change7d.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>
-                    {bitcoinData.change7d}
-                  </span>
-                </div>
-                <span className="mx-2 text-gray-500 shrink-0">•</span>
-                <div className="flex items-center space-x-1 shrink-0">
-                  <span className="text-gray-400 ticker-30d">30d</span>
-                  <span className="min-w-[44px] text-right" style={{ color: bitcoinData.change30d.startsWith('+') ? '#00D964' : bitcoinData.change30d.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>
-                    {bitcoinData.change30d}
-                  </span>
-                </div>
+                ))}
               </div>
             </div>
           </div>
           
           {/* Bitcoin Price Container - In the middle, exact same height as crypto feed */}
-          <div className="content-wide border-b border-gray-700 flex-shrink-0" style={{ backgroundColor: '#0F0F0F' }}>
-            <div ref={btcRowRef} className="flex items-center gap-4 sm:gap-6 h-full text-sm w-full min-w-0 truncate-line">
+          <div className="bitcoin-ticker border-b border-gray-700 flex-shrink-0" style={{ backgroundColor: '#0F0F0F', height: '40px' }}>
+            <div ref={btcRowRef} className="flex items-center h-full text-sm w-full" style={{ padding: '0 16px' }}>
               {/* Asset Name and Price */}
-              <div ref={btcLeftRef} className="flex items-center space-x-2 whitespace-nowrap shrink-0" style={{ marginLeft: 0, paddingLeft: 0 }}>
+              <div ref={btcLeftRef} className="flex items-center space-x-2 whitespace-nowrap shrink-0">
                 <span className="font-semibold text-white">Bitcoin (BTC)</span>
                 <span
                   className="text-white font-normal px-1 rounded"
@@ -445,27 +426,30 @@ function App() {
               </div>
               
               {/* Time-based Changes */}
-              <div ref={btcTimeRef} className={`ticker-timeframes tabular-nums flex-1 min-w-0 text-sm`}>
-                <span className="flex items-center gap-1 shrink-0">
+              <div ref={btcTimeRef} className="ticker-timeframes flex items-center ml-auto">
+                <div className="flex items-center gap-1">
                   <span className="text-gray-400">1h</span>
-                  <span className={`${btcMode >= 2 ? 'min-w-[44px]' : btcMode >= 1 ? 'min-w-[48px]' : 'min-w-[56px]'} text-right`} style={{ color: getChangeHex(bitcoinData.change1h) }}>{bitcoinData.change1h}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
+                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change1h) }}>{bitcoinData.change1h}</span>
+                </div>
+                <span className="mx-2 text-gray-500">•</span>
+                <div className="flex items-center gap-1">
                   <span className="text-gray-400">24h</span>
-                  <span className={`${btcMode >= 2 ? 'min-w-[44px]' : btcMode >= 1 ? 'min-w-[48px]' : 'min-w-[56px]'} text-right`} style={{ color: getChangeHex(bitcoinData.change24h) }}>{bitcoinData.change24h}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
+                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change24h) }}>{bitcoinData.change24h}</span>
+                </div>
+                <span className="mx-2 text-gray-500">•</span>
+                <div className="flex items-center gap-1">
                   <span className="text-gray-400">7d</span>
-                  <span className={`${btcMode >= 2 ? 'min-w-[44px]' : btcMode >= 1 ? 'min-w-[48px]' : 'min-w-[56px]'} text-right`} style={{ color: getChangeHex(bitcoinData.change7d) }}>{bitcoinData.change7d}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
-                  <span className="text-gray-400">30d</span>
-                  <span className={`${btcMode >= 2 ? 'min-w-[44px]' : btcMode >= 1 ? 'min-w-[48px]' : 'min-w-[56px]'} text-right ticker-30d`} style={{ color: getChangeHex(bitcoinData.change30d) }}>{bitcoinData.change30d}</span>
-                </span>
+                  <span className="min-w-[56px] text-right tabular-nums" style={{ color: getChangeHex(bitcoinData.change7d) }}>{bitcoinData.change7d}</span>
+                </div>
+                <span className="mx-2 text-gray-500">•</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-400 ticker-30d">30d</span>
+                  <span className="min-w-[62px] text-right tabular-nums ticker-30d" style={{ color: getChangeHex(bitcoinData.change30d) }}>{bitcoinData.change30d}</span>
+                </div>
               </div>
 
               {/* Last update timestamp */}
-              <div className="ml-auto text-xs text-gray-500 shrink-0">
+              <div className="ml-4 text-xs text-gray-500 shrink-0 hidden lg:block">
                 {lastUpdateTs ? `Updated ${lastUpdateTs.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}` : ''}
               </div>
 
