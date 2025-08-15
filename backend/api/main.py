@@ -85,9 +85,16 @@ async def startup_event():
     if settings.ALERT_PIPELINE == "legacy":
         asyncio.create_task(bitcoin_monitor.monitor_bitcoin())
 
-    # Start Coinbase WebSocket (primary)
-    asyncio.create_task(coinbase_ws.start())
-    # Also keep fallback poller for RealTime engine
+    # Start market data sources based on feature flags
+    if settings.WS_SOURCE == "advanced" and settings.COINBASE_KEY_JSON:
+        asyncio.create_task(coinbase_ws.start())
+    else:
+        # Use public WS via connection manager to drive frontend ticker updates
+        try:
+            asyncio.create_task(manager.start_crypto_feed())
+        except Exception:
+            pass
+    # Also keep fallback poller for RealTime engine (for price_update + alerts)
     asyncio.create_task(rt_poller.start())
     # Start scheduled tasks
     asyncio.create_task(rt_alert_engine.poll_sentiment())

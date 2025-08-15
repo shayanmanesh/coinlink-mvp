@@ -128,7 +128,7 @@ class RealTimeAlertEngine:
             'correlation_break': 0.0,
             'sentiment_leading': 0.0,
         }
-        self.alert_cooldown: float = 300.0  # seconds
+        self.alert_cooldown: float = float(getattr(settings, 'ALERT_COOLDOWN_SECONDS', 300.0))
         # Simple duplicate content suppression window
         self._last_agent_message_text: Optional[str] = None
         self._last_agent_message_ts: float = 0.0
@@ -218,15 +218,17 @@ class RealTimeAlertEngine:
             if self._should_send_alert('rsi_cross'):
                 await self._alert('RSI threshold crossed', {'rsi': rsi})
 
-        # 3) Support/resistance breach ±0.5%
-        if resistance and price > resistance * 1.005:
+        # 3) Support/resistance breach with hysteresis
+        res_hyst = 1.0 + float(getattr(settings, 'RESISTANCE_HYSTERESIS_PCT', 0.005))
+        sup_hyst = 1.0 - float(getattr(settings, 'SUPPORT_HYSTERESIS_PCT', 0.005))
+        if resistance and price > resistance * res_hyst:
             try:
                 print(f"[AlertCheck] TRIGGER Resistance breach: price={price:.2f} res={resistance:.2f}")
             except Exception:
                 pass
             if self._should_send_alert('resistance_breach'):
                 await self._alert('Resistance breach', {'price': price, 'resistance': resistance})
-        if support and price < support * 0.995:
+        if support and price < support * sup_hyst:
             try:
                 print(f"[AlertCheck] TRIGGER Support breach: price={price:.2f} sup={support:.2f}")
             except Exception:
@@ -234,8 +236,9 @@ class RealTimeAlertEngine:
             if self._should_send_alert('support_breach'):
                 await self._alert('Support breach', {'price': price, 'support': support})
 
-        # 4) Volume spike >3x 5-minute average
-        if vol_5m_avg and vol_1m > 3 * vol_5m_avg:
+        # 4) Volume spike > N x 5-minute average
+        vol_mult = float(getattr(settings, 'VOL_SPIKE_MULTIPLIER', 3.0))
+        if vol_5m_avg and vol_1m > vol_mult * vol_5m_avg:
             try:
                 print(f"[AlertCheck] TRIGGER Volume spike: vol_1m={vol_1m:.4f} avg5m={vol_5m_avg:.4f}")
             except Exception:

@@ -38,6 +38,10 @@ class Settings:
     # Alert tuning
     PRICE_SIGMA_K = float(os.getenv("PRICE_SIGMA_K", "2.5"))  # k * sigma threshold for 1m returns
     ALERT_DEDUP_WINDOW_SECONDS = int(os.getenv("ALERT_DEDUP_WINDOW_SECONDS", "120"))
+    VOL_SPIKE_MULTIPLIER = float(os.getenv("VOL_SPIKE_MULTIPLIER", "3.0"))
+    RESISTANCE_HYSTERESIS_PCT = float(os.getenv("RESISTANCE_HYSTERESIS_PCT", "0.005"))
+    SUPPORT_HYSTERESIS_PCT = float(os.getenv("SUPPORT_HYSTERESIS_PCT", "0.005"))
+    ALERT_COOLDOWN_SECONDS = float(os.getenv("ALERT_COOLDOWN_SECONDS", "300"))
     
     # WebSocket Settings
     WS_HEARTBEAT_INTERVAL = 30
