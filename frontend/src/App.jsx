@@ -4,6 +4,7 @@ import TradingViewWidget from './components/TradingViewWidget';
 import { WebSocketService } from './services/api';
 // Removed direct client Coinbase WS; rely on backend WS crypto_ticker_update
 import './App.css';
+import PromptFeed from './components/PromptFeed';
 import axios from 'axios'; // Added axios import
 
 function App() {
@@ -381,11 +382,18 @@ function App() {
         </div>
       </div>
       
-      {/* Right Panel with Crypto Feed, Bitcoin Container, and TradingView */}
+      {/* Right Panel with Prompt Feed, Crypto Feed, Bitcoin Container, and TradingView */}
       <div 
         className="flex flex-col min-w-0"
         style={{ width: `${100 - chatWidth}%` }}
       >
+        {/* Prompt Feed - time-sensitive, no horizontal scroll */}
+        <PromptFeed onPromptClick={(text) => {
+          try {
+            const input = document.querySelector('input[placeholder^="Ask about Bitcoin"]');
+            if (input) { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); }
+          } catch {}
+        }} />
         {/* Tick-by-tick Cryptocurrency Container and Bitcoin Price Container - Same Height */}
         <div className="flex flex-col">
           {/* Tick-by-tick Cryptocurrency Container - At the top */}

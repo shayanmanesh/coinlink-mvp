@@ -4,6 +4,7 @@ import { alerts$, connectRealtime } from '../services/realtime';
 import audioService from '../services/audioService';
 import AudioControls from './AudioControls';
 import QuickAuth from './QuickAuth';
+import { bumpEngagement } from '../services/engagement';
 
 const Chat = ({ isConnected }) => {
   const [messages, setMessages] = useState([]);
@@ -148,6 +149,7 @@ const Chat = ({ isConnected }) => {
 
       console.log('Adding user message:', userMessage);
       setMessages(prev => [...prev, userMessage]);
+      try { bumpEngagement(2); } catch {}
       if (!message) setInputMessage('');
       setIsLoading(true);
 
@@ -167,6 +169,7 @@ const Chat = ({ isConnected }) => {
             sessionId: sessionId  // Add this line
           };
           setMessages(prev => [...prev, systemMessage]);
+          try { bumpEngagement(1); } catch {}
           // Play sound for user input needed
           audioService.playUserInputNeeded();
         } else if (response && response.type === 'chat' && response.bot_response) {
@@ -182,6 +185,7 @@ const Chat = ({ isConnected }) => {
 
           console.log('Adding bot message:', botMessage);
           setMessages(prev => [...prev, botMessage]);
+          try { bumpEngagement(2); } catch {}
           // Play sound for task completion
           audioService.playTaskComplete();
         } else {
