@@ -1,0 +1,78 @@
+services:
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: coinlink-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Ollama for TinyLlama model serving
+  ollama:
+    image: ollama/ollama:latest
+    container_name: coinlink-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coinlink-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - REDIS_URL=redis://redis:6379
+      - COINBASE_API_KEY=${COINBASE_API_KEY}
+      - COINBASE_API_SECRET=${COINBASE_API_SECRET}
+      - COINBASE_KEY_JSON=${COINBASE_KEY_JSON}
+      - HF_TOKEN=${HF_TOKEN}
+      - CoinGecko_API_key=${CoinGecko_API_key}
+      - Reddit_API_SECRET=${Reddit_API_SECRET}
+      - Reddit_client_id=${Reddit_client_id}
+      - newsapi_api_key=${newsapi_api_key}
+      - messari_api_key=${messari_api_key}
+    depends_on:
+      - redis
+      - ollama
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend React app
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: coinlink-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000/ws
+    depends_on:
+      - backend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm start
+
+volumes:
+  redis_data:
+  ollama_data:
+
+networks:
+  default:
+    name: coinlink-network

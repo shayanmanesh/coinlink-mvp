@@ -1,0 +1,386 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* Align numeric columns nicely */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fixed content shell with uniform side padding and width calc */
+.content-wide {
+  width: calc(100% - 32px);
+  padding-left: 16px;
+  padding-right: 16px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Single-line truncation helper */
+.truncate-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ticker container and inner layout */
+.ticker-container {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #2d3748;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.bitcoin-ticker {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px;
+  gap: 12px;
+}
+
+.ticker-timeframes {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticker-timeframes span:not(:last-child)::after {
+  content: " \2022";
+  margin-left: 8px;
+  color: #4a5568;
+}
+
+.ticker-30d {
+  font-size: 0.9em;
+}
+
+/* Chart wrapper aligns with ticker padding */
+.chart-wrapper {
+  padding: 0 16px;
+  width: calc(100% - 32px);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+/* Fixed content shell with uniform side padding and width calc */
+.content-wide {
+  width: calc(100% - 32px);
+  padding-left: 16px;
+  padding-right: 16px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Single-line truncation helper */
+.truncate-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* App.css */
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Resizer styling */
+.resizer {
+  transition: background-color 0.2s ease;
+}
+
+.resizer:hover {
+  background-color: #f97316 !important;
+}
+
+/* Smooth transitions for layout changes */
+.chat-panel,
+.chart-panel {
+  transition: width 0.1s ease;
+}
+
+/* Ensure columns and resizer occupy full height for seamless dragging */
+.h-screen > .flex > [role="separator"] {
+  height: 100%;
+}
+
+/* Cryptocurrency ticker animation */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 60s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Horizontal scrollbar for prompts (dark subtle) */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* Animation for status indicators */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Chat bubble animations */
+.chat-bubble {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading animation */
+.loading-dots {
+  display: inline-block;
+}
+
+.loading-dots div {
+  animation: loading-bounce 1.4s ease-in-out infinite both;
+  background-color: currentColor;
+  border-radius: 50%;
+  display: inline-block;
+  height: 6px;
+  margin: 0 2px;
+  width: 6px;
+}
+
+.loading-dots div:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots div:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes loading-bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* Custom Bitcoin-themed styles */
+.bitcoin-gradient {
+  background: linear-gradient(135deg, #f7931a 0%, #ff9500 100%);
+}
+
+.bitcoin-orange {
+  color: #f7931a;
+}
+
+.bitcoin-bg {
+  background-color: #f7931a;
+}
+
+/* Custom scrollbar for chat */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: #f7931a;
+  border-radius: 3px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #e67e22;
+}
+
+/* Alert animations */
+.alert-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.alert-slide-out {
+  animation: slideOut 0.3s ease-in;
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Sentiment indicators */
+.sentiment-bullish {
+  color: #10b981;
+}
+
+.sentiment-bearish {
+  color: #ef4444;
+}
+
+.sentiment-neutral {
+  color: #6b7280;
+}
+
+/* Price change indicators */
+.price-up {
+  color: #10b981;
+}
+
+.price-down {
+  color: #ef4444;
+}
+
+.price-neutral {
+  color: #6b7280;
+}
+
+/* Loading spinner */
+.spinner {
+  border: 2px solid #374151;
+  border-top: 2px solid #f7931a;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* TradingView Widget Styles */
+.tradingview-widget-container {
+  position: relative;
+}
+
+.tradingview-widget-container__widget {
+  position: relative;
+}
+
+.tradingview-widget-copyright {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: rgba(18, 18, 18, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.tradingview-widget-copyright a {
+  color: #60A5FA;
+  text-decoration: none;
+}
+
+.tradingview-widget-copyright a:hover {
+  text-decoration: underline;
+}
+
+.blue-text {
+  color: #60A5FA;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .flex {
+    flex-direction: column;
+  }
+  
+  .w-3\/5 {
+    width: 100%;
+    height: 60vh;
+  }
+  
+  .w-2\/5 {
+    width: 100%;
+    height: 40vh;
+  }
+}
