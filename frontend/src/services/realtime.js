@@ -44,6 +44,13 @@ export const alerts$ = inbound$.pipe(
   shareReplay(1)
 );
 
+// Intelligent prompt feed: stream of preloaded prompts pushed from backend
+export const promptFeed$ = inbound$.pipe(
+  filter((m) => m && m.type === 'prompt_feed'),
+  map((m) => m.data || []),
+  shareReplay(1)
+);
+
 export const sentimentShift$ = inbound$.pipe(
   filter((m) => m && m.type === 'sentiment_shift'),
   map((m) => m.data),

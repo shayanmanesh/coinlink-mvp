@@ -1,4 +1,4 @@
-// Coinbase WebSocket for real-time crypto data
+// Deprecated: Client-side Coinbase WS removed; backend now provides ticker via WS
 export class CoinbaseWebSocket {
   constructor() {
     this.ws = null;
@@ -318,5 +318,5 @@ export class CoinbaseWebSocket {
   }
 }
 
-// Export singleton instance
+// No-op singleton to avoid import errors in any older code paths
 export const coinbaseWS = new CoinbaseWebSocket();

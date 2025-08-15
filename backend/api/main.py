@@ -100,6 +100,7 @@ async def startup_event():
     asyncio.create_task(rt_alert_engine.poll_sentiment())
     asyncio.create_task(rt_alert_engine.push_market_insights())
     asyncio.create_task(rt_alert_engine.monitor_correlation())
+    asyncio.create_task(rt_alert_engine.push_technical_reports())
     
     # Start registration cleanup task
     asyncio.create_task(registration_cleanup_task())
@@ -291,8 +292,10 @@ async def get_market_summary():
 
 @app.get("/api/alerts")
 async def get_alerts():
-    """Get active alerts"""
+    """Get active alerts (legacy)"""
     try:
+        if settings.ALERT_PIPELINE != "legacy":
+            raise HTTPException(status_code=404, detail="Endpoint disabled")
         active_alerts = await alert_engine.get_active_alerts()
         return {
             "alerts": active_alerts,
@@ -304,8 +307,10 @@ async def get_alerts():
 
 @app.get("/api/alerts/history")
 async def get_alert_history(limit: int = 20):
-    """Get alert history"""
+    """Get alert history (legacy)"""
     try:
+        if settings.ALERT_PIPELINE != "legacy":
+            raise HTTPException(status_code=404, detail="Endpoint disabled")
         history = await alert_engine.get_alert_history(limit)
         return {
             "history": history,

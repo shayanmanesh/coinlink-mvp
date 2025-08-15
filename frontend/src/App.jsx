@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Chat from './components/Chat';
 import TradingViewWidget from './components/TradingViewWidget';
 import { WebSocketService } from './services/api';
-import { coinbaseWS } from './services/coinbaseWebSocket';
+// Removed direct client Coinbase WS; rely on backend WS crypto_ticker_update
 import './App.css';
 import axios from 'axios'; // Added axios import
 
@@ -249,54 +249,35 @@ function App() {
     volume24h: 0
   });
 
-  // Connect to Coinbase WebSocket for real-time crypto data
+  // Listen to backend WS for real-time crypto ticker updates
   useEffect(() => {
-    // Connect to Coinbase WebSocket
-    coinbaseWS.connect();
-    
-    // Subscribe to updates
-    const handleCoinbaseUpdate = (data) => {
-      if (data.cryptoData && data.cryptoData.length > 0) {
-        setCryptoData(prev => {
-          // Update existing crypto data with real prices
-          return prev.map(crypto => {
-            const realData = data.cryptoData.find(d => d.symbol === crypto.symbol);
-            if (realData) {
-              return {
-                ...crypto,
-                price: realData.price,
-                change_24h: realData.change_24h,
-                flash: realData.flash
-              };
-            }
-            return crypto;
-          });
-        });
-      }
-      
-      if (data.bitcoinData) {
-        const btc = data.bitcoinData;
-        setBitcoinData({
-          price: btc.price,
-          change1h: btc.change1h,
-          change24h: btc.change24h,
-          change7d: btc.change7d,
-          volume24h: btc.volume24h
-        });
-        
-        // Handle flash effect
-        if (btc.flash) {
-          setBtcFlash(btc.flash);
-          setTimeout(() => setBtcFlash(null), 200);
+    const wsService = new WebSocketService();
+    wsService.on('message', (data) => {
+      try {
+        if (data && data.type === 'crypto_ticker_update' && Array.isArray(data.data)) {
+          const symbolToData = new Map(data.data.map(d => [d.symbol, d]));
+          setCryptoData(prev => prev.map(c => {
+            const d = symbolToData.get(c.symbol);
+            if (!d) return c;
+            return {
+              ...c,
+              price: d.price,
+              change_24h: d.change_24h,
+            };
+          }));
+          const btc = symbolToData.get('BTC');
+          if (btc) {
+            setBitcoinData(prev => ({
+              ...prev,
+              price: btc.price,
+              change24h: btc.change_24h,
+            }));
+          }
         }
-      }
-    };
-    
-    coinbaseWS.subscribe(handleCoinbaseUpdate);
-    
-    return () => {
-      coinbaseWS.unsubscribe(handleCoinbaseUpdate);
-    };
+      } catch (e) {}
+    });
+    wsService.connect().catch(() => {});
+    return () => wsService.disconnect();
   }, []);
 
   // Removed old Bitcoin fetch logic - now handled by Coinbase WebSocket

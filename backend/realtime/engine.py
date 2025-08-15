@@ -132,6 +132,8 @@ class RealTimeAlertEngine:
         # Simple duplicate content suppression window
         self._last_agent_message_text: Optional[str] = None
         self._last_agent_message_ts: float = 0.0
+        # Prompt feed buffer (rolling)
+        self._prompt_feed: Deque[Dict] = deque(maxlen=50)
 
     def _should_send_alert(self, alert_type: str) -> bool:
         now = time.time()
@@ -293,6 +295,19 @@ class RealTimeAlertEngine:
             except Exception:
                 pass
             await websocket_handler.send_agent_message(content)
+            # Also push into intelligent prompt feed as a high-signal card
+            try:
+                card = {
+                    'kind': 'alert',
+                    'title': title,
+                    'content': content,
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'priority': 'high'
+                }
+                self._prompt_feed.appendleft(card)
+                await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -502,9 +517,53 @@ class RealTimeAlertEngine:
                         },
                         'priority': 'normal'
                     })
+                    # Feed a concise prompt card every 5 minutes
+                    try:
+                        rsi = comp.get('rsi')
+                        card = {
+                            'kind': 'insight',
+                            'title': 'Market snapshot',
+                            'content': f"BTC ${now_price:,.0f} | RSI {rsi:.1f}" if isinstance(rsi, (int,float)) else f"BTC ${now_price:,.0f}",
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'priority': 'normal'
+                        }
+                        self._prompt_feed.appendleft(card)
+                        await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+                    except Exception:
+                        pass
             except Exception:
                 pass
             await asyncio.sleep(300)
+
+    async def push_technical_reports(self):
+        """Every 30 minutes, generate a concise technical report and push to prompt feed."""
+        from agents.technical_reporter import TechnicalAnalystReporter, TechnicalSnapshot
+        reporter = TechnicalAnalystReporter()
+        while True:
+            try:
+                comp = self.metrics.compute()
+                if self.metrics.ticks:
+                    snap = TechnicalSnapshot(
+                        timestamp=datetime.utcnow(),
+                        price=self.metrics.ticks[-1].price,
+                        rsi=comp.get('rsi'),
+                        change_1m_pct=comp.get('change_1m_pct'),
+                        support=comp.get('support'),
+                        resistance=comp.get('resistance'),
+                    )
+                    report = reporter.build_report(snap)
+                    card = {
+                        'kind': 'report',
+                        'title': '30m Technical Report',
+                        'content': report,
+                        'timestamp': datetime.utcnow().isoformat(),
+                        'priority': 'normal'
+                    }
+                    self._prompt_feed.appendleft(card)
+                    await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+            except Exception:
+                pass
+            await asyncio.sleep(1800)
 
 
 class MarketDataPoller:
