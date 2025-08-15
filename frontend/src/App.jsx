@@ -18,6 +18,21 @@ function App() {
   const [btcMode, setBtcMode] = useState(0); // 0: full, 1: condensed, 2: hide 1h, 3: hide 1h + ultra condensed
   const measureRafRef = useRef(null);
   const [lastUpdateTs, setLastUpdateTs] = useState(null);
+  
+  // Helper function to format crypto prices
+  const formatNumber = (num) => {
+    if (num >= 1000) {
+      return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    } else if (num >= 1) {
+      return num.toFixed(2);
+    } else if (num >= 0.01) {
+      return num.toFixed(4);
+    } else if (num >= 0.0001) {
+      return num.toFixed(6);
+    } else {
+      return num.toExponential(2);
+    }
+  };
 
   useEffect(() => {
     // Initialize WebSocket connection using the service
@@ -34,7 +49,12 @@ function App() {
     wsService.on('message', (data) => {
       console.log('WebSocket message received:', data);
       try {
-        if (data && data.type === 'bitcoin_update') {
+        if (data && data.type === 'crypto_ticker_update') {
+          // Update crypto ticker data with real-time updates
+          if (data.data && Array.isArray(data.data)) {
+            setCryptoData(data.data);
+          }
+        } else if (data && data.type === 'bitcoin_update') {
           const p = data.price || {};
           const nextPrice = p.price ?? p.last ?? p.bid ?? null;
           const next24h = p.change_24h ?? p.change24h ?? null;
@@ -162,57 +182,56 @@ function App() {
 
   // Cryptocurrency ticker data (top 50 by market cap)
   const [cryptoData, setCryptoData] = useState([
-    { symbol: 'BTC', name: 'Bitcoin', price: '$118,413.39', change: '+2.45%' },
-    { symbol: 'ETH', name: 'Ethereum', price: '$3,245.67', change: '+1.23%' },
-    { symbol: 'BNB', name: 'BNB', price: '$567.89', change: '+3.12%' },
-    { symbol: 'SOL', name: 'Solana', price: '$145.67', change: '+5.67%' },
-    { symbol: 'USDC', name: 'USD Coin', price: '$1.00', change: '0.00%' },
-    { symbol: 'XRP', name: 'XRP', price: '$0.5678', change: '+1.89%' },
-    { symbol: 'ADA', name: 'Cardano', price: '$0.4567', change: '+2.34%' },
-    { symbol: 'AVAX', name: 'Avalanche', price: '$34.56', change: '+4.56%' },
-    { symbol: 'DOGE', name: 'Dogecoin', price: '$0.1234', change: '+1.23%' },
-    { symbol: 'TRX', name: 'TRON', price: '$0.0987', change: '+0.87%' },
-    { symbol: 'LINK', name: 'Chainlink', price: '$18.90', change: '+3.45%' },
-    { symbol: 'DOT', name: 'Polkadot', price: '$7.89', change: '+2.78%' },
-    { symbol: 'MATIC', name: 'Polygon', price: '$0.8765', change: '+4.32%' },
-    { symbol: 'TON', name: 'Toncoin', price: '$6.78', change: '+1.67%' },
-    { symbol: 'SHIB', name: 'Shiba Inu', price: '$0.000023', change: '+2.89%' },
-    { symbol: 'DAI', name: 'Dai', price: '$1.00', change: '0.00%' },
-    { symbol: 'LTC', name: 'Litecoin', price: '$78.90', change: '+1.45%' },
-    { symbol: 'UNI', name: 'Uniswap', price: '$12.34', change: '+3.21%' },
-    { symbol: 'BCH', name: 'Bitcoin Cash', price: '$456.78', change: '+2.67%' },
-    { symbol: 'XLM', name: 'Stellar', price: '$0.1234', change: '+1.89%' },
-    { symbol: 'ATOM', name: 'Cosmos', price: '$9.87', change: '+4.12%' },
-    { symbol: 'NEAR', name: 'NEAR Protocol', price: '$5.67', change: '+2.34%' },
-    { symbol: 'XMR', name: 'Monero', price: '$234.56', change: '+1.78%' },
-    { symbol: 'OP', name: 'Optimism', price: '$3.45', change: '+5.67%' },
-    { symbol: 'ARB', name: 'Arbitrum', price: '$1.23', change: '+3.89%' },
-    { symbol: 'FIL', name: 'Filecoin', price: '$6.78', change: '+2.45%' },
-    { symbol: 'APT', name: 'Aptos', price: '$8.90', change: '+4.23%' },
-    { symbol: 'HBAR', name: 'Hedera', price: '$0.0987', change: '+1.67%' },
-    { symbol: 'CRO', name: 'Cronos', price: '$0.1234', change: '+2.89%' },
-    { symbol: 'VET', name: 'VeChain', price: '$0.0456', change: '+3.12%' },
-    { symbol: 'MKR', name: 'Maker', price: '$2,345.67', change: '+1.45%' },
-    { symbol: 'KAS', name: 'Kaspa', price: '$0.1234', change: '+5.78%' },
-    { symbol: 'INJ', name: 'Injective', price: '$34.56', change: '+2.34%' },
-    { symbol: 'RUNE', name: 'THORChain', price: '$7.89', change: '+4.56%' },
-    { symbol: 'GRT', name: 'The Graph', price: '$0.2345', change: '+1.89%' },
-    { symbol: 'THETA', name: 'Theta Network', price: '$2.34', change: '+3.21%' },
-    { symbol: 'FTM', name: 'Fantom', price: '$0.4567', change: '+2.78%' },
-    { symbol: 'ALGO', name: 'Algorand', price: '$0.2345', change: '+1.67%' },
-    { symbol: 'LDO', name: 'Lido DAO', price: '$2.89', change: '+4.23%' },
-    { symbol: 'IMX', name: 'Immutable', price: '$3.45', change: '+2.45%' },
-    { symbol: 'SUI', name: 'Sui', price: '$1.67', change: '+3.89%' },
-    { symbol: 'SEI', name: 'Sei', price: '$0.5678', change: '+2.12%' },
-    { symbol: 'MANTLE', name: 'Mantle', price: '$0.8765', change: '+1.78%' },
-    { symbol: 'STRK', name: 'Starknet', price: '$1.23', change: '+4.56%' },
-    { symbol: 'ZETA', name: 'ZetaChain', price: '$2.34', change: '+2.89%' },
-    { symbol: 'BONK', name: 'Bonk', price: '$0.000045', change: '+6.78%' },
-    { symbol: 'JUP', name: 'Jupiter', price: '$0.8765', change: '+3.45%' },
-    { symbol: 'WIF', name: 'dogwifhat', price: '$2.34', change: '+5.67%' },
-    { symbol: 'PEPE', name: 'Pepe', price: '$0.000012', change: '+2.34%' },
-    { symbol: 'FLOKI', name: 'FLOKI', price: '$0.000023', change: '+4.56%' },
-    { symbol: 'BOME', name: 'Book of Meme', price: '$0.0123', change: '+3.78%' }
+    { symbol: 'BTC', name: 'Bitcoin', price: 118413.39, change_24h: 2.45, rank: 1, market_cap: 2318000000000 },
+    { symbol: 'ETH', name: 'Ethereum', price: 3245.67, change_24h: 1.23, rank: 2, market_cap: 390000000000 },
+    { symbol: 'SOL', name: 'Solana', price: 145.67, change_24h: 5.67, rank: 3, market_cap: 64000000000 },
+    { symbol: 'BNB', name: 'BNB', price: 567.89, change_24h: 3.12, rank: 4, market_cap: 87000000000 },
+    { symbol: 'XRP', name: 'XRP', price: 0.5678, change_24h: 1.89, rank: 5, market_cap: 30900000000 },
+    { symbol: 'DOGE', name: 'Dogecoin', price: 0.1234, change_24h: -1.23, rank: 6, market_cap: 17600000000 },
+    { symbol: 'ADA', name: 'Cardano', price: 0.4567, change_24h: 2.34, rank: 7, market_cap: 16300000000 },
+    { symbol: 'AVAX', name: 'Avalanche', price: 34.56, change_24h: 4.56, rank: 8, market_cap: 13100000000 },
+    { symbol: 'TRX', name: 'TRON', price: 0.0987, change_24h: 0.87, rank: 9, market_cap: 8600000000 },
+    { symbol: 'LINK', name: 'Chainlink', price: 18.90, change_24h: 3.45, rank: 10, market_cap: 11300000000 },
+    { symbol: 'DOT', name: 'Polkadot', price: 7.89, change_24h: 2.78, rank: 11, market_cap: 11000000000 },
+    { symbol: 'MATIC', name: 'Polygon', price: 0.8765, change_24h: 4.32, rank: 12, market_cap: 8100000000 },
+    { symbol: 'TON', name: 'Toncoin', price: 6.78, change_24h: 1.67, rank: 13, market_cap: 34600000000 },
+    { symbol: 'SHIB', name: 'Shiba Inu', price: 0.000023, change_24h: 2.89, rank: 14, market_cap: 13500000000 },
+    { symbol: 'LTC', name: 'Litecoin', price: 78.90, change_24h: 1.45, rank: 15, market_cap: 5800000000 },
+    { symbol: 'UNI', name: 'Uniswap', price: 12.34, change_24h: 3.21, rank: 16, market_cap: 9200000000 },
+    { symbol: 'BCH', name: 'Bitcoin Cash', price: 456.78, change_24h: 2.67, rank: 17, market_cap: 8900000000 },
+    { symbol: 'XLM', name: 'Stellar', price: 0.1234, change_24h: 1.89, rank: 18, market_cap: 3500000000 },
+    { symbol: 'ATOM', name: 'Cosmos', price: 9.87, change_24h: 4.12, rank: 19, market_cap: 3800000000 },
+    { symbol: 'NEAR', name: 'NEAR Protocol', price: 5.67, change_24h: 2.34, rank: 20, market_cap: 6200000000 },
+    { symbol: 'XMR', name: 'Monero', price: 234.56, change_24h: 1.78, rank: 21, market_cap: 4300000000 },
+    { symbol: 'OP', name: 'Optimism', price: 3.45, change_24h: 5.67, rank: 22, market_cap: 15500000000 },
+    { symbol: 'ARB', name: 'Arbitrum', price: 1.23, change_24h: 3.89, rank: 23, market_cap: 12300000000 },
+    { symbol: 'FIL', name: 'Filecoin', price: 6.78, change_24h: 2.45, rank: 24, market_cap: 3700000000 },
+    { symbol: 'APT', name: 'Aptos', price: 8.90, change_24h: 4.23, rank: 25, market_cap: 8900000000 },
+    { symbol: 'HBAR', name: 'Hedera', price: 0.0987, change_24h: 1.67, rank: 26, market_cap: 3300000000 },
+    { symbol: 'CRO', name: 'Cronos', price: 0.1234, change_24h: 2.89, rank: 27, market_cap: 3200000000 },
+    { symbol: 'VET', name: 'VeChain', price: 0.0456, change_24h: 3.12, rank: 28, market_cap: 3300000000 },
+    { symbol: 'MKR', name: 'Maker', price: 2345.67, change_24h: 1.45, rank: 29, market_cap: 2100000000 },
+    { symbol: 'KAS', name: 'Kaspa', price: 0.1234, change_24h: 5.78, rank: 30, market_cap: 2900000000 },
+    { symbol: 'INJ', name: 'Injective', price: 34.56, change_24h: 2.34, rank: 31, market_cap: 3400000000 },
+    { symbol: 'RUNE', name: 'THORChain', price: 7.89, change_24h: 4.56, rank: 32, market_cap: 2600000000 },
+    { symbol: 'GRT', name: 'The Graph', price: 0.2345, change_24h: 1.89, rank: 33, market_cap: 2300000000 },
+    { symbol: 'THETA', name: 'Theta Network', price: 2.34, change_24h: 3.21, rank: 34, market_cap: 2300000000 },
+    { symbol: 'FTM', name: 'Fantom', price: 0.4567, change_24h: 2.78, rank: 35, market_cap: 1200000000 },
+    { symbol: 'ALGO', name: 'Algorand', price: 0.2345, change_24h: 1.67, rank: 36, market_cap: 1900000000 },
+    { symbol: 'LDO', name: 'Lido DAO', price: 2.89, change_24h: 4.23, rank: 37, market_cap: 2500000000 },
+    { symbol: 'IMX', name: 'Immutable', price: 3.45, change_24h: 2.45, rank: 38, market_cap: 6900000000 },
+    { symbol: 'SUI', name: 'Sui', price: 1.67, change_24h: 3.89, rank: 39, market_cap: 16700000000 },
+    { symbol: 'SEI', name: 'Sei', price: 0.5678, change_24h: 2.12, rank: 40, market_cap: 5600000000 },
+    { symbol: 'MANA', name: 'Decentraland', price: 0.8765, change_24h: -1.78, rank: 41, market_cap: 1600000000 },
+    { symbol: 'SAND', name: 'The Sandbox', price: 0.4321, change_24h: 4.56, rank: 42, market_cap: 990000000 },
+    { symbol: 'AXS', name: 'Axie Infinity', price: 12.34, change_24h: -2.89, rank: 43, market_cap: 1700000000 },
+    { symbol: 'AAVE', name: 'Aave', price: 234.56, change_24h: 6.78, rank: 44, market_cap: 3700000000 },
+    { symbol: 'EOS', name: 'EOS', price: 0.8765, change_24h: 3.45, rank: 45, market_cap: 1000000000 },
+    { symbol: 'QNT', name: 'Quant', price: 123.45, change_24h: -5.67, rank: 46, market_cap: 1800000000 },
+    { symbol: 'FLOW', name: 'Flow', price: 2.34, change_24h: 2.34, rank: 47, market_cap: 3200000000 },
+    { symbol: 'CHZ', name: 'Chiliz', price: 0.1234, change_24h: 1.56, rank: 48, market_cap: 1000000000 },
+    { symbol: 'RNDR', name: 'Render', price: 6.78, change_24h: 3.67, rank: 49, market_cap: 2500000000 },
+    { symbol: 'SNX', name: 'Synthetix', price: 3.45, change_24h: -1.23, rank: 50, market_cap: 1100000000 }
   ]);
 
   // Bitcoin data state
@@ -389,24 +408,39 @@ function App() {
           {/* Tick-by-tick Cryptocurrency Container - At the top */}
           <div className="ticker-container" style={{ backgroundColor: '#0F0F0F', borderBottom: '1px solid #2d3748' }}>
             <div className="ticker-wrapper overflow-hidden h-full">
-              <div className="ticker-content animate-ticker flex items-center h-full whitespace-nowrap">
-                {cryptoData.filter(crypto => crypto.symbol !== 'USDT' && crypto.symbol !== 'USDC' && crypto.symbol !== 'DAI').map((crypto, index) => (
-                  <span key={index} className="inline-flex items-center px-2">
-                    <span className="font-semibold text-white">{crypto.symbol}</span>
-                    <span className="ml-2 text-white">{crypto.price}</span>
-                    <span className="ml-1" style={{ color: crypto.change.startsWith('+') ? '#00D964' : crypto.change.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>({crypto.change})</span>
-                    {index < cryptoData.length - 1 && <span className="mx-3" style={{ color: '#4a5568' }}>•</span>}
-                  </span>
-                ))}
-                {/* Duplicate for continuous scroll */}
-                {cryptoData.filter(crypto => crypto.symbol !== 'USDT' && crypto.symbol !== 'USDC' && crypto.symbol !== 'DAI').map((crypto, index) => (
-                  <span key={`dup-${index}`} className="inline-flex items-center px-2">
-                    <span className="font-semibold text-white">{crypto.symbol}</span>
-                    <span className="ml-2 text-white">{crypto.price}</span>
-                    <span className="ml-1" style={{ color: crypto.change.startsWith('+') ? '#00D964' : crypto.change.startsWith('-') ? '#FF3737' : '#A0A0A0' }}>({crypto.change})</span>
-                    {index < cryptoData.length - 1 && <span className="mx-3" style={{ color: '#4a5568' }}>•</span>}
-                  </span>
-                ))}
+              <div className="ticker-content continuous-scroll flex items-center h-full whitespace-nowrap">
+                {/* First set of tickers */}
+                {cryptoData
+                  .filter(crypto => !['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD'].includes(crypto.symbol))
+                  .sort((a, b) => a.rank - b.rank)
+                  .slice(0, 50)
+                  .map((crypto, index) => (
+                    <span key={`first-${crypto.symbol}`} className="inline-flex items-center px-3">
+                      <span className="text-xs text-gray-500 mr-1">#{crypto.rank}</span>
+                      <span className="font-semibold text-white">{crypto.symbol}</span>
+                      <span className="ml-2 text-white">${formatNumber(crypto.price)}</span>
+                      <span className="ml-1" style={{ 
+                        color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
+                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
+                      <span className="mx-3" style={{ color: '#4a5568' }}>•</span>
+                    </span>
+                  ))}
+                {/* Duplicate for seamless loop */}
+                {cryptoData
+                  .filter(crypto => !['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD'].includes(crypto.symbol))
+                  .sort((a, b) => a.rank - b.rank)
+                  .slice(0, 50)
+                  .map((crypto, index) => (
+                    <span key={`second-${crypto.symbol}`} className="inline-flex items-center px-3">
+                      <span className="text-xs text-gray-500 mr-1">#{crypto.rank}</span>
+                      <span className="font-semibold text-white">{crypto.symbol}</span>
+                      <span className="ml-2 text-white">${formatNumber(crypto.price)}</span>
+                      <span className="ml-1" style={{ 
+                        color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
+                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
+                      <span className="mx-3" style={{ color: '#4a5568' }}>•</span>
+                    </span>
+                  ))}
               </div>
             </div>
           </div>

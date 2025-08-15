@@ -91,6 +91,9 @@ async def startup_event():
     
     # Start registration cleanup task
     asyncio.create_task(registration_cleanup_task())
+    
+    # Start cryptocurrency ticker feed
+    await connection_manager.start_crypto_feed()
 
     print("CoinLink MVP started successfully!")
 

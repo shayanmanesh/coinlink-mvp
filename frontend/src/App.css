@@ -124,22 +124,40 @@ body {
   height: 100%;
 }
 
-/* Cryptocurrency ticker animation */
-@keyframes ticker {
+/* Cryptocurrency ticker animation - continuous smooth scroll */
+@keyframes continuous-ticker {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-100%);
+    transform: translateX(-50%);
   }
 }
 
-.animate-ticker {
-  animation: ticker 60s linear infinite;
+.continuous-scroll {
+  animation: continuous-ticker 120s linear infinite;
+  will-change: transform;
 }
 
-.animate-ticker:hover {
+.continuous-scroll:hover {
   animation-play-state: paused;
+}
+
+.ticker-wrapper {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 2%,
+    black 98%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 2%,
+    black 98%,
+    transparent 100%
+  );
 }
 
 /* Custom scrollbar */

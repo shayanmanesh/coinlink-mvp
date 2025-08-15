@@ -11,6 +11,8 @@ class ConnectionManager:
         self.active_connections: List[WebSocket] = []
         self.connection_ids = {}
         self.logger = logging.getLogger("coinlink.ws")
+        self.latest_crypto_data: List[Dict[str, Any]] = []
+        self.crypto_ws_manager = None  # Will be initialized later
         
     async def connect(self, websocket: WebSocket):
         """Connect a new WebSocket client"""
@@ -103,6 +105,29 @@ class ConnectionManager:
             "timestamp": datetime.now().isoformat()
         }
         await self.broadcast(message)
+    
+    async def broadcast_crypto_update(self, crypto_data: List[Dict[str, Any]]):
+        """Broadcast crypto ticker updates to all clients"""
+        self.latest_crypto_data = crypto_data
+        message = {
+            "type": "crypto_ticker_update",
+            "data": crypto_data[:50],  # Top 50 only
+            "timestamp": datetime.now().isoformat()
+        }
+        await self.broadcast(message)
+    
+    async def start_crypto_feed(self):
+        """Start the cryptocurrency WebSocket feed"""
+        try:
+            from realtime.crypto_websocket import CoinbaseWebSocketManager
+            self.crypto_ws_manager = CoinbaseWebSocketManager()
+            # Register callback for crypto updates
+            self.crypto_ws_manager.add_update_callback(self.broadcast_crypto_update)
+            # Start the WebSocket connection
+            asyncio.create_task(self.crypto_ws_manager.start())
+            self.logger.info("Started cryptocurrency WebSocket feed")
+        except Exception as e:
+            self.logger.error(f"Failed to start crypto feed: {e}")
 
 class WebSocketHandler:
     def __init__(self, manager: ConnectionManager):
