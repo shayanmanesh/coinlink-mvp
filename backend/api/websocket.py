@@ -1,10 +1,11 @@
 import json
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
 from datetime import datetime
 import uuid
+from auth.simple_auth import auth
 
 class ConnectionManager:
     def __init__(self):
@@ -197,17 +198,41 @@ class WebSocketHandler:
             await self.send_error("Unknown message type", websocket)
     
     async def handle_chat_message(self, message: Dict[str, Any], websocket: WebSocket):
-        """Handle chat message from user"""
+        """Handle chat message from user with rate limiting"""
         try:
             user_message = message.get("message", "")
             if not user_message.strip():
+                return
+            
+            # Get authentication token from message
+            token = message.get("token")
+            email = None
+            is_authenticated = False
+            
+            if token:
+                email = auth.verify_token(token)
+                is_authenticated = email is not None
+            
+            # Check rate limit
+            identifier = f"user:{email}" if email else f"ws:{self.manager.connection_ids.get(websocket, 'unknown')}"
+            allowed, limit_message, limit_info = auth.check_rate_limit(identifier, is_authenticated)
+            
+            if not allowed:
+                # Send rate limit error
+                await self.manager.send_personal_message({
+                    "type": "rate_limit_error",
+                    "message": limit_message,
+                    "info": limit_info,
+                    "timestamp": datetime.now().isoformat()
+                }, websocket)
                 return
             
             # Add to chat history
             chat_entry = {
                 "user_message": user_message,
                 "timestamp": datetime.now().isoformat(),
-                "type": "user"
+                "type": "user",
+                "authenticated": is_authenticated
             }
             self.chat_history.append(chat_entry)
             
@@ -215,10 +240,11 @@ class WebSocketHandler:
             if len(self.chat_history) > self.max_history:
                 self.chat_history.pop(0)
             
-            # Send acknowledgment
+            # Send acknowledgment with rate limit info
             await self.manager.send_personal_message({
                 "type": "chat_ack",
                 "message": "Message received, analyzing Bitcoin...",
+                "rate_limit_info": limit_info,
                 "timestamp": datetime.now().isoformat()
             }, websocket)
             

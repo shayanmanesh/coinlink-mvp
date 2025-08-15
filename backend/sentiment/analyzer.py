@@ -8,12 +8,34 @@ from config.settings import settings
 
 class BitcoinSentimentAnalyzer:
     def __init__(self):
-        self.classifier = pipeline(
-            "sentiment-analysis",
-            model="ProsusAI/finbert",
-            token=settings.HF_TOKEN
-        )
+        # Initialize classifier defensively to avoid startup crashes if HF token is missing/invalid
+        self.classifier = None
         self.bitcoin_keywords = settings.BTC_KEYWORDS
+        try:
+            hf_token = settings.HF_TOKEN
+            # Only pass token if it looks non-placeholder
+            if hf_token and isinstance(hf_token, str) and not hf_token.lower().startswith("your_"):
+                try:
+                    self.classifier = pipeline(
+                        "sentiment-analysis",
+                        model=getattr(settings, "SENTIMENT_MODEL", "ProsusAI/finbert"),
+                        token=hf_token
+                    )
+                except Exception:
+                    # Retry anonymously
+                    self.classifier = pipeline(
+                        "sentiment-analysis",
+                        model=getattr(settings, "SENTIMENT_MODEL", "ProsusAI/finbert")
+                    )
+            else:
+                # No token provided – try anonymous access
+                self.classifier = pipeline(
+                    "sentiment-analysis",
+                    model=getattr(settings, "SENTIMENT_MODEL", "ProsusAI/finbert")
+                )
+        except Exception:
+            # Leave classifier as None; call sites will handle gracefully
+            self.classifier = None
         
     def analyze_bitcoin_news(self, text: str) -> Optional[Dict[str, Any]]:
         """Analyze sentiment of Bitcoin-related news"""
@@ -23,6 +45,8 @@ class BitcoinSentimentAnalyzer:
                 return None
             
             # Analyze sentiment
+            if not self.classifier:
+                return None
             result = self.classifier(text)[0]
             
             return {
@@ -38,6 +62,17 @@ class BitcoinSentimentAnalyzer:
     def analyze_multiple_news(self, news_list: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze sentiment of multiple Bitcoin news articles"""
         try:
+            if not self.classifier:
+                # Neutral fallback when classifier unavailable
+                return {
+                    "overall_sentiment": "neutral",
+                    "average_score": 0,
+                    "total_articles": 0,
+                    "positive_count": 0,
+                    "negative_count": 0,
+                    "neutral_count": 0,
+                    "bitcoin_news": []
+                }
             bitcoin_news = []
             total_sentiment_score = 0
             positive_count = 0

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Chat from './components/Chat';
 import TradingViewWidget from './components/TradingViewWidget';
 import { WebSocketService } from './services/api';
+import { coinbaseWS } from './services/coinbaseWebSocket';
 import './App.css';
 import axios from 'axios'; // Added axios import
 
@@ -187,9 +188,9 @@ function App() {
 
   // Cryptocurrency ticker data (top 50 by market cap)
   const [cryptoData, setCryptoData] = useState([
-    { symbol: 'BTC', name: 'Bitcoin', price: 118413.39, change_24h: 2.45, rank: 1, market_cap: 2318000000000 },
-    { symbol: 'ETH', name: 'Ethereum', price: 3245.67, change_24h: 1.23, rank: 2, market_cap: 390000000000 },
-    { symbol: 'SOL', name: 'Solana', price: 145.67, change_24h: 5.67, rank: 3, market_cap: 64000000000 },
+    { symbol: 'BTC', name: 'Bitcoin', price: 0, change_24h: 0, rank: 1, market_cap: 2318000000000 },
+    { symbol: 'ETH', name: 'Ethereum', price: 0, change_24h: 0, rank: 2, market_cap: 390000000000 },
+    { symbol: 'SOL', name: 'Solana', price: 0, change_24h: 0, rank: 3, market_cap: 64000000000 },
     { symbol: 'BNB', name: 'BNB', price: 567.89, change_24h: 3.12, rank: 4, market_cap: 87000000000 },
     { symbol: 'XRP', name: 'XRP', price: 0.5678, change_24h: 1.89, rank: 5, market_cap: 30900000000 },
     { symbol: 'DOGE', name: 'Dogecoin', price: 0.1234, change_24h: -1.23, rank: 6, market_cap: 17600000000 },
@@ -241,59 +242,64 @@ function App() {
 
   // Bitcoin data state
   const [bitcoinData, setBitcoinData] = useState({
-    price: '$0.00',
-    change1h: '+0.00%',
-    change24h: '+0.00%',
-    change7d: '+0.00%',
-    change30d: '+0.00%'
+    price: 0,
+    change1h: 0,
+    change24h: 0,
+    change7d: 0,
+    volume24h: 0
   });
 
-  // Simulate real-time updates
+  // Connect to Coinbase WebSocket for real-time crypto data
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBitcoinData(prev => ({
-        ...prev,
-        price: `$${(118000 + Math.random() * 1000).toFixed(2)}`,
-        change1h: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 5).toFixed(2)}%`,
-        change12h: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 8).toFixed(2)}%`,
-        change24h: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 10).toFixed(2)}%`,
-        change7d: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 15).toFixed(2)}%`,
-        change30d: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 25).toFixed(2)}%`,
-        volume24h: (40 + Math.random() * 20) * 1e9
-      }));
-    }, 2000); // Update every 2 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const fetchBitcoinData = async () => {
-      try {
-        const response = await axios.get('/api/bitcoin/price');
-        const data = response.data;
+    // Connect to Coinbase WebSocket
+    coinbaseWS.connect();
+    
+    // Subscribe to updates
+    const handleCoinbaseUpdate = (data) => {
+      if (data.cryptoData && data.cryptoData.length > 0) {
+        setCryptoData(prev => {
+          // Update existing crypto data with real prices
+          return prev.map(crypto => {
+            const realData = data.cryptoData.find(d => d.symbol === crypto.symbol);
+            if (realData) {
+              return {
+                ...crypto,
+                price: realData.price,
+                change_24h: realData.change_24h,
+                flash: realData.flash
+              };
+            }
+            return crypto;
+          });
+        });
+      }
+      
+      if (data.bitcoinData) {
+        const btc = data.bitcoinData;
+        setBitcoinData({
+          price: btc.price,
+          change1h: btc.change1h,
+          change24h: btc.change24h,
+          change7d: btc.change7d,
+          volume24h: btc.volume24h
+        });
         
-        // Update flash state based on price change
-        if (prevBtcPriceRef.current !== null) {
-                  const prevPrice = parseFloat(prevBtcPriceRef.current.replace(/[^0-9.-]/g, ''));
-        const currentPrice = parseFloat(data.price.replace(/[^0-9.-]/g, ''));
-          setBtcFlash(currentPrice > prevPrice ? 'green' : currentPrice < prevPrice ? 'red' : null);
+        // Handle flash effect
+        if (btc.flash) {
+          setBtcFlash(btc.flash);
+          setTimeout(() => setBtcFlash(null), 200);
         }
-        
-        prevBtcPriceRef.current = data.price;
-        setBitcoinData(data);
-      } catch (error) {
-        console.error('Error fetching Bitcoin data:', error);
       }
     };
     
-    // Initial fetch
-    fetchBitcoinData();
+    coinbaseWS.subscribe(handleCoinbaseUpdate);
     
-    // Poll every 5 seconds
-    const intervalId = setInterval(fetchBitcoinData, 5000);
-    
-    return () => clearInterval(intervalId);
+    return () => {
+      coinbaseWS.unsubscribe(handleCoinbaseUpdate);
+    };
   }, []);
+
+  // Removed old Bitcoin fetch logic - now handled by Coinbase WebSocket
 
   const parseNumber = (value) => {
     if (typeof value === 'number') return value;
@@ -313,16 +319,7 @@ function App() {
     return n > 0 ? '#00D964' : '#FF3737';
   };
 
-  // Flash only the BTC price value (not the whole bar) when updated
-  useEffect(() => {
-    const current = parseNumber(bitcoinData.price);
-    const prev = prevBtcPriceRef.current;
-    if (prev !== null && prev !== undefined && current !== prev) {
-      setBtcFlash(current > prev ? 'green' : 'red');
-      setTimeout(() => setBtcFlash(null), 200);
-    }
-    prevBtcPriceRef.current = current;
-  }, [bitcoinData.price]);
+  // Removed - flash effect now handled in Coinbase WebSocket update
 
   // Responsively contain time segment to respect right margin and keep 30d visible
   useEffect(() => {
@@ -413,7 +410,7 @@ function App() {
           {/* Tick-by-tick Cryptocurrency Container - At the top */}
           <div className="ticker-container" style={{ backgroundColor: '#0F0F0F', borderBottom: '1px solid #2d3748' }}>
             <div className="ticker-wrapper">
-              <div className="ticker-content continuous-scroll">
+              <div className="ticker-content ticker-scroll">
                 {/* First set of tickers with exact formatting */}
                 {cryptoData
                   .filter(crypto => !['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD'].includes(crypto.symbol))
@@ -421,11 +418,14 @@ function App() {
                   .slice(0, 50)
                   .map((crypto) => (
                     <span key={`first-${crypto.symbol}`} className="ticker-item">
-                      <span className="ticker-symbol">"{crypto.symbol}"</span>
-                      <span className="ticker-price">${formatNumber(crypto.price)}</span>
+                      <span className="ticker-symbol">{crypto.symbol}</span>
+                      <span className="ticker-price" style={{
+                        color: crypto.flash === 'green' ? '#00D964' : crypto.flash === 'red' ? '#FF3737' : '#ffffff',
+                        transition: 'color 200ms ease'
+                      }}>${formatNumber(crypto.price)}</span>
                       <span className="ticker-change" style={{ 
                         color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
-                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
+                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h ? crypto.change_24h.toFixed(2) : '0.00'}%)</span>
                       <span className="ticker-separator">•</span>
                     </span>
                   ))}
@@ -436,11 +436,14 @@ function App() {
                   .slice(0, 50)
                   .map((crypto) => (
                     <span key={`second-${crypto.symbol}`} className="ticker-item">
-                      <span className="ticker-symbol">"{crypto.symbol}"</span>
-                      <span className="ticker-price">${formatNumber(crypto.price)}</span>
+                      <span className="ticker-symbol">{crypto.symbol}</span>
+                      <span className="ticker-price" style={{
+                        color: crypto.flash === 'green' ? '#00D964' : crypto.flash === 'red' ? '#FF3737' : '#ffffff',
+                        transition: 'color 200ms ease'
+                      }}>${formatNumber(crypto.price)}</span>
                       <span className="ticker-change" style={{ 
                         color: crypto.change_24h > 0 ? '#00D964' : crypto.change_24h < 0 ? '#FF3737' : '#A0A0A0' 
-                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h.toFixed(2)}%)</span>
+                      }}>({crypto.change_24h > 0 ? '+' : ''}{crypto.change_24h ? crypto.change_24h.toFixed(2) : '0.00'}%)</span>
                       <span className="ticker-separator">•</span>
                     </span>
                   ))}
@@ -449,46 +452,40 @@ function App() {
           </div>
           
           {/* Bitcoin Price Container - New Format: Bitcoin (BTC) $97,420.15 (+2.34% 1H) (+5.67% 24H) (+12.89% 7D) */}
-          <div className="bitcoin-ticker border-b border-gray-700 flex-shrink-0" style={{ 
+          <div className="bitcoin-feed" style={{ 
             backgroundColor: '#0F0F0F', 
             height: '40px',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
             fontSize: '17px',
-            lineHeight: '40px'
+            lineHeight: '40px',
+            padding: '0 20px',
+            display: 'flex',
+            alignItems: 'center',
+            borderBottom: '1px solid #2d3748'
           }}>
-            <div ref={btcRowRef} className="flex items-center h-full w-full" style={{ padding: '0 16px' }}>
-              {/* Bitcoin (BTC) Name and Price */}
-              <div className="flex items-center">
-                <span className="font-medium text-white mr-3">Bitcoin (BTC)</span>
-                <span
-                  className="text-white font-normal px-1 rounded"
-                  style={{ 
-                    backgroundColor: btcFlash === 'green' ? '#00D96420' : btcFlash === 'red' ? '#FF373720' : 'transparent', 
-                    transition: 'background-color 200ms ease' 
-                  }}
-                >
-                  {formatDollars(bitcoinData.price)}
-                </span>
-                
-                {/* Time-based Changes in new format */}
-                <span className="ml-4 text-white">
-                  <span style={{ color: getChangeHex(bitcoinData.change1h) }}>
-                    ({bitcoinData.change1h} 1H)
-                  </span>
-                  <span className="ml-2" style={{ color: getChangeHex(bitcoinData.change24h) }}>
-                    ({bitcoinData.change24h} 24H)
-                  </span>
-                  <span className="ml-2" style={{ color: getChangeHex(bitcoinData.change7d) }}>
-                    ({bitcoinData.change7d} 7D)
-                  </span>
-                </span>
-              </div>
-
-              {/* Last update timestamp */}
-              <div className="ml-auto text-xs text-gray-500 shrink-0 hidden lg:block">
-                {lastUpdateTs ? `Updated ${lastUpdateTs.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}` : ''}
-              </div>
-            </div>
+            <span className="font-medium text-white">Bitcoin (BTC)</span>
+            <span
+              className="ml-3 text-white font-normal"
+              style={{ 
+                color: btcFlash === 'green' ? '#00D964' : btcFlash === 'red' ? '#FF3737' : '#ffffff',
+                transition: 'color 200ms ease' 
+              }}
+            >
+              ${formatNumber(bitcoinData.price)}
+            </span>
+            
+            {/* Time-based Changes */}
+            <span className="ml-4">
+              <span style={{ color: bitcoinData.change1h > 0 ? '#00D964' : bitcoinData.change1h < 0 ? '#FF3737' : '#A0A0A0' }}>
+                ({bitcoinData.change1h > 0 ? '+' : ''}{bitcoinData.change1h ? bitcoinData.change1h.toFixed(2) : '0.00'}% 1H)
+              </span>
+              <span className="ml-3" style={{ color: bitcoinData.change24h > 0 ? '#00D964' : bitcoinData.change24h < 0 ? '#FF3737' : '#A0A0A0' }}>
+                ({bitcoinData.change24h > 0 ? '+' : ''}{bitcoinData.change24h ? bitcoinData.change24h.toFixed(2) : '0.00'}% 24H)
+              </span>
+              <span className="ml-3" style={{ color: bitcoinData.change7d > 0 ? '#00D964' : bitcoinData.change7d < 0 ? '#FF3737' : '#A0A0A0' }}>
+                ({bitcoinData.change7d > 0 ? '+' : ''}{bitcoinData.change7d ? bitcoinData.change7d.toFixed(2) : '0.00'}% 7D)
+              </span>
+            </span>
           </div>
         </div>
         

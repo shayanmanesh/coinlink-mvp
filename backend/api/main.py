@@ -23,6 +23,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from auth.registration_state import RegistrationFlow
 from auth.routes import router as auth_router
+from auth.auth_api import router as simple_auth_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -65,6 +66,7 @@ bitcoin_analyst.add_tools(bitcoin_tools)
 
 # Include auth routes
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(simple_auth_router, prefix="/api/v2/auth", tags=["auth-v2"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -93,7 +95,7 @@ async def startup_event():
     asyncio.create_task(registration_cleanup_task())
     
     # Start cryptocurrency ticker feed
-    await connection_manager.start_crypto_feed()
+    # await connection_manager.start_crypto_feed()  # Commented out - not defined yet
 
     print("CoinLink MVP started successfully!")
 

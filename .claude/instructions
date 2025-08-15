@@ -1,0 +1,29 @@
+IMPLEMENTATION STANDARDS:
+* Begin by asking qualifying questions *
+- One-shot implementation - get it right the first time
+- Use REAL API data only - no hardcoded examples
+- Test ALL features before claiming completion
+- Verify with console output or browser screenshots
+- Ask questions BEFORE implementing if unclear
+- Test again, ensuring production-ready code and following design best practices.
+
+FORBIDDEN:
+* Begin by asking qualifying questions *
+- Claiming "complete" without proof
+- Placeholder data or mock values
+- Multiple attempts at the same feature
+- Progress reports without working code
+- Partial implementations
+- Test again, ensuring production-ready code and following design best practices.
+
+
+WORKFLOW:
+* Begin by asking qualifying questions *
+1. Understand requirement fully
+2. Implement completely
+3. Test thoroughly
+4. Show proof of functionality
+5. Only then report completion
+
+
+Quality > Speed. Production-ready code only.

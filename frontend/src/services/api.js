@@ -33,10 +33,17 @@ api.interceptors.response.use(
 
 // Bitcoin Analysis API
 export const bitcoinAPI = {
-  // Chat with Bitcoin analyst
-  async chat(message, sessionId = 'default') {
+  // Chat with Bitcoin analyst (with optional auth token)
+  async chat(message, sessionId = 'default', authToken = null) {
     try {
-      const response = await api.post('/api/chat', { message, session_id: sessionId });
+      const headers = {};
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      const response = await api.post('/api/chat', 
+        { message, session_id: sessionId, token: authToken },
+        { headers }
+      );
       return response.data;
     } catch (error) {
       console.error('Chat API error:', error);
@@ -137,6 +144,59 @@ export const chatAPI = {
       throw error;
     }
   },
+};
+
+// Authentication API
+export const authAPI = {
+  // Sign up
+  async signup(email, password) {
+    try {
+      const response = await api.post('/api/v2/auth/signup', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Signup API error:', error);
+      throw error;
+    }
+  },
+  
+  // Login
+  async login(email, password) {
+    try {
+      const response = await api.post('/api/v2/auth/login', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Login API error:', error);
+      throw error;
+    }
+  },
+  
+  // Verify authentication
+  async verify(token) {
+    try {
+      const response = await api.get('/api/v2/auth/verify', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Verify API error:', error);
+      throw error;
+    }
+  },
+  
+  // Check rate limit
+  async checkRateLimit(token = null) {
+    try {
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await api.get('/api/v2/auth/rate-limit', { headers });
+      return response.data;
+    } catch (error) {
+      console.error('Rate limit API error:', error);
+      throw error;
+    }
+  }
 };
 
 // System API

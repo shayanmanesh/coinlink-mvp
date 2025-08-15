@@ -3,13 +3,18 @@ import { bitcoinAPI, systemAPI } from '../services/api';
 import { alerts$, connectRealtime } from '../services/realtime';
 import audioService from '../services/audioService';
 import AudioControls from './AudioControls';
+import QuickAuth from './QuickAuth';
 
 const Chat = ({ isConnected }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState('default'); // Add this line
-  const [isPasswordStep, setIsPasswordStep] = useState(false); // Add this line
+  const [sessionId, setSessionId] = useState('default');
+  const [isPasswordStep, setIsPasswordStep] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authToken, setAuthToken] = useState(localStorage.getItem('authToken'));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail'));
+  const [rateLimitInfo, setRateLimitInfo] = useState(null);
   const messagesEndRef = useRef(null);
   const [hasNewAlert, setHasNewAlert] = useState(false);
 
@@ -24,16 +29,28 @@ const Chat = ({ isConnected }) => {
 
   // Add welcome message on component mount
   useEffect(() => {
-    setMessages([
+    const welcomeMessages = [
       {
         id: 'welcome',
         type: 'bot',
-        content: 'Welcome to CoinLink Bitcoin Analysis! Ask me anything about Bitcoin (BTC) - price analysis, market sentiment, technical indicators, or trading insights. I focus exclusively on Bitcoin analysis. Type /register to create your free account.',
+        content: 'Welcome to CoinLink Bitcoin Analysis! Ask me anything about Bitcoin (BTC). Free users get 5 prompts. Sign up for 50 prompts per 12 hours.',
         timestamp: new Date().toISOString(),
-        sessionId: sessionId  // Add this line
+        sessionId: sessionId
       }
-    ]);
-  }, []);
+    ];
+    
+    if (userEmail) {
+      welcomeMessages.push({
+        id: 'auth-info',
+        type: 'system',
+        content: `Logged in as ${userEmail} - 50 prompts per 12 hours`,
+        timestamp: new Date().toISOString(),
+        sessionId: sessionId
+      });
+    }
+    
+    setMessages(welcomeMessages);
+  }, [userEmail]);
 
   // Subscribe to agent-initiated alert messages (inline chat)
   useEffect(() => {
@@ -66,6 +83,38 @@ const Chat = ({ isConnected }) => {
   }, []);
 
   
+
+  // Handle auth success
+  const handleAuthSuccess = (token, user) => {
+    setAuthToken(token);
+    setUserEmail(user.email);
+    setShowAuth(false);
+    
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'system',
+      content: `✓ Logged in as ${user.email}. You now have 50 prompts per 12 hours.`,
+      timestamp: new Date().toISOString(),
+      sessionId: sessionId
+    }]);
+  };
+  
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userEmail');
+    setAuthToken(null);
+    setUserEmail(null);
+    setRateLimitInfo(null);
+    
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'system',
+      content: 'Logged out. You now have 5 free prompts.',
+      timestamp: new Date().toISOString(),
+      sessionId: sessionId
+    }]);
+  };
 
   const sendMessage = async (message = null) => {
     try {
@@ -104,7 +153,7 @@ const Chat = ({ isConnected }) => {
 
       try {
         console.log('Calling bitcoinAPI.chat with:', messageToSend);
-        const response = await bitcoinAPI.chat(messageToSend, sessionId);
+        const response = await bitcoinAPI.chat(messageToSend, sessionId, authToken);
         console.log('Chat API response:', response);
 
         if (response && response.type === 'registration') {
@@ -191,7 +240,15 @@ const Chat = ({ isConnected }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
+      {/* Show auth modal if needed */}
+      {showAuth && (
+        <QuickAuth 
+          onAuthSuccess={handleAuthSuccess}
+          onClose={() => setShowAuth(false)}
+        />
+      )}
+      
+      {/* Header with Auth */}
       <div className="text-white border-b border-gray-700" style={{ backgroundColor: '#0F0F0F' }}>
         <div className="max-w-3xl mx-auto px-4 py-3 font-bold text-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -199,8 +256,33 @@ const Chat = ({ isConnected }) => {
             {hasNewAlert && (
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" title="New alert" />
             )}
+            {rateLimitInfo && (
+              <span className="text-xs font-normal text-gray-400 ml-2">
+                ({rateLimitInfo.prompts_left}/{rateLimitInfo.prompts_max} prompts)
+              </span>
+            )}
           </div>
-          <AudioControls />
+          <div className="flex items-center gap-3">
+            {userEmail ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-normal text-gray-400">{userEmail}</span>
+                <button
+                  onClick={handleLogout}
+                  className="text-xs font-normal text-gray-500 hover:text-white"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="px-3 py-1 text-sm font-normal bg-orange-500 hover:bg-orange-600 text-white rounded transition-colors"
+              >
+                Sign Up
+              </button>
+            )}
+            <AudioControls />
+          </div>
         </div>
       </div>
 
