@@ -76,15 +76,18 @@ async def startup_event():
     # Initialize monitor
     await bitcoin_monitor.initialize()
 
-    # Add alert callbacks
-    await bitcoin_monitor.add_alert_callback(alert_engine.process_alert)
-    await alert_engine.add_alert_callback(websocket_handler.send_alert)
+    # Add alert callbacks (legacy pipeline guarded by feature flag)
+    if settings.ALERT_PIPELINE == "legacy":
+        await bitcoin_monitor.add_alert_callback(alert_engine.process_alert)
+        await alert_engine.add_alert_callback(websocket_handler.send_alert)
 
-    # Start background monitoring
-    asyncio.create_task(bitcoin_monitor.monitor_bitcoin())
+    # Start background monitoring (legacy) only if enabled
+    if settings.ALERT_PIPELINE == "legacy":
+        asyncio.create_task(bitcoin_monitor.monitor_bitcoin())
+
     # Start Coinbase WebSocket (primary)
     asyncio.create_task(coinbase_ws.start())
-    # Also keep fallback poller in case WS is unavailable
+    # Also keep fallback poller for RealTime engine
     asyncio.create_task(rt_poller.start())
     # Start scheduled tasks
     asyncio.create_task(rt_alert_engine.poll_sentiment())

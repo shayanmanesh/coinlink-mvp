@@ -11,6 +11,7 @@ import numpy as np
 from api.websocket import manager, websocket_handler
 from sentiment.analyzer import BitcoinSentimentService
 from tools.coinbase_tools import get_bitcoin_price
+from config.settings import settings
 
 
 @dataclass
@@ -173,10 +174,28 @@ class RealTimeAlertEngine:
         })
 
         # Triggers
-        # 1) Price moves >2% in 1 minute
-        if abs(change_1m_pct) > 2.0:
+        # 1) Price move: volatility-aware threshold using rolling 1m return sigma
+        # Estimate sigma from last 30 minutes of 1m returns
+        returns_window: List[float] = []
+        try:
+            # Build per-minute returns retrospectively from ticks
+            times, price_returns, _ = self._build_minute_series()
+            if price_returns:
+                # Recent 30 values or all if fewer
+                sample = price_returns[-30:] if len(price_returns) >= 30 else price_returns
+                mu = float(np.mean(sample)) if sample else 0.0
+                sigma = float(np.std(sample)) if sample else 0.0
+            else:
+                mu = 0.0
+                sigma = 0.0
+        except Exception:
+            mu = 0.0
+            sigma = 0.0
+        k = getattr(settings, 'PRICE_SIGMA_K', 2.5)
+        dynamic_threshold = (abs(mu) + k * max(sigma, 0.1))  # guard against tiny sigma
+        if abs(change_1m_pct) > max(2.0, dynamic_threshold):
             try:
-                print(f"[AlertCheck] TRIGGER price move: {change_1m_pct:.2f}% (>|2%|)")
+                print(f"[AlertCheck] TRIGGER price move: {change_1m_pct:.2f}% (>max(2%, {dynamic_threshold:.2f}%))")
             except Exception:
                 pass
             if self._should_send_alert('price_move'):
@@ -256,11 +275,11 @@ class RealTimeAlertEngine:
                 content = f"🧭 Sentiment leading price by ~{lag}m (corr={corr}) ({ts})"
             else:
                 content = f"ℹ️ {title} ({ts})"
-            # Deduplicate identical content within short window (e.g., 10s)
+            # Deduplicate identical content within configured window
             now_ts = time.time()
-            if self._last_agent_message_text == content and (now_ts - self._last_agent_message_ts) < 10.0:
+            if self._last_agent_message_text == content and (now_ts - self._last_agent_message_ts) < float(getattr(settings, 'ALERT_DEDUP_WINDOW_SECONDS', 120)):
                 try:
-                    self.logger.info("Suppressed duplicate agent chat within 10s: %s", content)
+                    self.logger.info("Suppressed duplicate agent chat within window: %s", content)
                 except Exception:
                     pass
                 return

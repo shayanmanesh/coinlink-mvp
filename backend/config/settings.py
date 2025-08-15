@@ -32,6 +32,12 @@ class Settings:
     ALERT_THRESHOLD_PERCENT = 5.0
     CACHE_TTL = 300  # 5 minutes
     MONITOR_INTERVAL = 30  # seconds
+    # Alert pipeline and data source feature flags
+    ALERT_PIPELINE = os.getenv("ALERT_PIPELINE", "rt")  # 'rt' or 'legacy'
+    WS_SOURCE = os.getenv("WS_SOURCE", "advanced")  # 'advanced' or 'public'
+    # Alert tuning
+    PRICE_SIGMA_K = float(os.getenv("PRICE_SIGMA_K", "2.5"))  # k * sigma threshold for 1m returns
+    ALERT_DEDUP_WINDOW_SECONDS = int(os.getenv("ALERT_DEDUP_WINDOW_SECONDS", "120"))
     
     # WebSocket Settings
     WS_HEARTBEAT_INTERVAL = 30
