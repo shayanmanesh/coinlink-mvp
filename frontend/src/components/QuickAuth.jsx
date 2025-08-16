@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { authAPI } from '../services/api';
 
 const QuickAuth = ({ onAuthSuccess, onClose }) => {
   const [mode, setMode] = useState('signup'); // 'signup' or 'login'
@@ -16,11 +16,9 @@ const QuickAuth = ({ onAuthSuccess, onClose }) => {
     setSuccess(false);
 
     try {
-      const endpoint = mode === 'signup' ? '/api/v2/auth/signup' : '/api/v2/auth/login';
-      const response = await axios.post(`http://localhost:8000${endpoint}`, {
-        email,
-        password
-      });
+      const response = mode === 'signup' 
+        ? await authAPI.signup(email, password)
+        : await authAPI.login(email, password);
 
       if (response.data.success) {
         setSuccess(true);

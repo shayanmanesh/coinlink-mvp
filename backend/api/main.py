@@ -26,6 +26,8 @@ from auth.registration_state import RegistrationFlow
 from auth.routes import router as auth_router
 from auth.auth_api import router as simple_auth_router
 from agents.analytics_agent import AnalyticsAgent
+from cache.redis_prod import production_cache, init_production_cache, close_production_cache
+from api.connection_pool import api_pool, init_connection_pools, close_connection_pools
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -86,6 +88,12 @@ app.include_router(simple_auth_router, prefix="/api/v2/auth", tags=["auth-v2"])
 async def startup_event():
     """Initialize services on startup"""
     print("Starting CoinLink MVP...")
+    
+    # Initialize Redis cache
+    await init_production_cache()
+    
+    # Initialize connection pools for external APIs
+    await init_connection_pools()
 
     # Initialize monitor
     await bitcoin_monitor.initialize()
@@ -142,6 +150,12 @@ async def registration_cleanup_task():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("Shutting down CoinLink MVP...")
+    
+    # Close connection pools
+    await close_connection_pools()
+    
+    # Close Redis cache
+    await close_production_cache()
 
 @app.get("/")
 async def root():
@@ -155,12 +169,22 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint - Enhanced with monitoring layer"""
+    """Health check endpoint - Enhanced with monitoring layer and metrics"""
     try:
         from monitoring.health import health_monitor
-        health_data = await health_monitor.get_system_health()
+        from monitoring.metrics import performance_metrics
+        
+        # Get health status and performance metrics in parallel
+        health_data, metrics_data = await asyncio.gather(
+            health_monitor.get_system_health(),
+            asyncio.to_thread(performance_metrics.get_metrics)
+        )
+        
+        # Combine health and metrics data
+        health_data["performance"] = metrics_data
+        
         return health_data
-    except Exception:
+    except Exception as e:
         # Fallback to original simple health check if monitoring fails
         return {
             "status": "healthy",
@@ -170,7 +194,8 @@ async def health_check():
                 "sentiment_service": "active",
                 "bitcoin_monitor": "active",
                 "alert_engine": "active"
-            }
+            },
+            "error": str(e)
         }
 
 @app.websocket("/ws")
@@ -274,18 +299,43 @@ async def chat_endpoint(payload: Dict[str, Any], request: Request):
 @app.get("/api/bitcoin/price")
 @limiter.limit("60/minute")
 async def get_bitcoin_price_api(request: Request):
-    """Get current Bitcoin price"""
-    try:
-        price_data = await bitcoin_monitor.get_bitcoin_price()
-        if not price_data:
-            raise HTTPException(status_code=404, detail="Unable to fetch Bitcoin price")
+    """Get current Bitcoin price with caching and performance tracking"""
+    from monitoring.metrics import performance_metrics, RequestTimer
+    
+    async with RequestTimer():
+        try:
+            # Try to get from cache first
+            cache_key = "bitcoin:price"
+            cached_data = await production_cache.get(cache_key)
+            
+            if cached_data:
+                performance_metrics.record_cache_hit()
+                return {
+                    "data": cached_data,
+                    "timestamp": datetime.now().isoformat(),
+                    "cached": True
+                }
+            
+            # Cache miss
+            performance_metrics.record_cache_miss()
+            performance_metrics.record_api_call("coinbase")
+            
+            # Fetch fresh data
+            price_data = await bitcoin_monitor.get_bitcoin_price()
+            if not price_data:
+                raise HTTPException(status_code=404, detail="Unable to fetch Bitcoin price")
+            
+            # Cache the data for 10 seconds (frequent updates for price)
+            await production_cache.set(cache_key, price_data, ttl=10)
 
-        return {
-            "data": price_data,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching Bitcoin price: {str(e)}")
+            return {
+                "data": price_data,
+                "timestamp": datetime.now().isoformat(),
+                "cached": False
+            }
+        except Exception as e:
+            performance_metrics.record_error("bitcoin_price_error")
+            raise HTTPException(status_code=500, detail=f"Error fetching Bitcoin price: {str(e)}")
 
 @app.get("/api/bitcoin/sentiment")
 async def get_bitcoin_sentiment():

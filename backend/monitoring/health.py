@@ -18,14 +18,25 @@ class HealthMonitor:
         self.last_check = None
         
     async def check_redis(self) -> Dict[str, Any]:
-        """Check Redis connectivity without affecting cache operations"""
+        """Check Redis connectivity and get pool stats"""
         try:
-            client = redis.from_url(settings.REDIS_URL)
-            start = time.time()
-            await client.ping()
-            latency = (time.time() - start) * 1000
-            await client.close()
-            return {"status": "healthy", "latency_ms": round(latency, 2)}
+            from cache.redis_prod import production_cache
+            
+            if production_cache.connected:
+                start = time.time()
+                await production_cache.client.ping()
+                latency = (time.time() - start) * 1000
+                
+                # Get connection pool stats
+                pool_stats = await production_cache.get_connection_pool_stats()
+                
+                return {
+                    "status": "healthy",
+                    "latency_ms": round(latency, 2),
+                    "pool_stats": pool_stats
+                }
+            else:
+                return {"status": "disconnected", "message": "Redis not connected"}
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
     
@@ -72,6 +83,28 @@ class HealthMonitor:
         except Exception as e:
             return {"status": "error", "error": str(e)}
     
+    async def check_connection_pools(self) -> Dict[str, Any]:
+        """Check API connection pool statistics"""
+        try:
+            from api.connection_pool import api_pool
+            stats = api_pool.get_all_stats()
+            
+            # Calculate aggregate stats
+            total_connections = sum(
+                len(api_pool.connectors.get(service, {})._conns) 
+                if service in api_pool.connectors else 0
+                for service in api_pool.sessions.keys()
+            )
+            
+            return {
+                "status": "healthy",
+                "total_pools": len(api_pool.sessions),
+                "total_connections": total_connections,
+                "pools": stats
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
     async def get_system_health(self) -> Dict[str, Any]:
         """Aggregate all health checks without blocking operations"""
         checks = await asyncio.gather(
@@ -79,6 +112,7 @@ class HealthMonitor:
             self.check_coinbase_api(),
             self.check_websocket_connections(),
             self.check_ml_models(),
+            self.check_connection_pools(),
             return_exceptions=True
         )
         
@@ -89,7 +123,8 @@ class HealthMonitor:
                 "redis": checks[0] if not isinstance(checks[0], Exception) else {"status": "error"},
                 "coinbase_api": checks[1] if not isinstance(checks[1], Exception) else {"status": "error"},
                 "websocket": checks[2] if not isinstance(checks[2], Exception) else {"status": "error"},
-                "ml_models": checks[3] if not isinstance(checks[3], Exception) else {"status": "error"}
+                "ml_models": checks[3] if not isinstance(checks[3], Exception) else {"status": "error"},
+                "connection_pools": checks[4] if not isinstance(checks[4], Exception) else {"status": "error"}
             }
         }
         

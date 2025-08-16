@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Chat from './components/Chat';
 import TradingViewWidget from './components/TradingViewWidget';
 import { WebSocketService } from './services/api';
+import ConnectionStatus from './components/ConnectionStatus';
 // Removed direct client Coinbase WS; rely on backend WS crypto_ticker_update
 import './App.css';
 import PromptFeed from './components/PromptFeed';
@@ -484,6 +485,8 @@ function App() {
         </div>
       </div>
       
+      {/* Connection Status Indicator */}
+      <ConnectionStatus />
     </div>
   );
 }

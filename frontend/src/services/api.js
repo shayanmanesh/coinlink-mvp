@@ -1,8 +1,16 @@
 import axios from 'axios';
 
-// API base configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const WS_BASE_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws';
+// API base configuration - Production ready
+const API_BASE_URL = process.env.REACT_APP_API_URL || (
+  process.env.NODE_ENV === 'production' 
+    ? 'https://api.coin.link' 
+    : 'http://localhost:8000'
+);
+const WS_BASE_URL = process.env.REACT_APP_WS_URL || (
+  process.env.NODE_ENV === 'production'
+    ? 'wss://api.coin.link/ws'
+    : 'ws://localhost:8000/ws'
+);
 
 // Create axios instance with default config
 const api = axios.create({
@@ -241,20 +249,38 @@ export class WebSocketService {
     this.url = url;
     this.ws = null;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 10;
     this.reconnectDelay = 1000;
     this.listeners = new Map();
+    this.connectionState = 'disconnected'; // 'disconnected', 'connecting', 'connected', 'reconnecting'
+    this.lastPingTime = null;
+    this.pingInterval = null;
+    this.reconnectTimeout = null;
+    this.isIntentionallyClosed = false;
   }
 
   connect() {
     return new Promise((resolve, reject) => {
       try {
-        try { console.log('[WS] connecting to', this.url); } catch {}
-        this.ws = new WebSocket(this.url);
+        // Clear any existing reconnect timeout
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = null;
+        }
+        
+        this.isIntentionallyClosed = false;
+        this.setConnectionState('connecting');
+        
+        // Use environment-aware URL
+        const wsUrl = this.url.replace('ws://', window.location.protocol === 'https:' ? 'wss://' : 'ws://');
+        try { console.log('[WS] connecting to', wsUrl); } catch {}
+        this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');
           this.reconnectAttempts = 0;
+          this.setConnectionState('connected');
+          this.startPingInterval();
           this.emit('connected');
           resolve();
         };
@@ -265,7 +291,14 @@ export class WebSocketService {
             
             // Handle ping messages by responding with pong
             if (data.type === 'ping') {
+              this.lastPingTime = Date.now();
               this.send({ type: 'pong', timestamp: new Date().toISOString() });
+              return;
+            }
+            
+            // Handle pong responses
+            if (data.type === 'pong') {
+              this.lastPingTime = Date.now();
               return;
             }
             
@@ -293,6 +326,8 @@ export class WebSocketService {
 
         this.ws.onclose = (event) => {
           console.log('WebSocket disconnected:', event.code, event.reason);
+          this.stopPingInterval();
+          
           // Only pass safe, serializable data
           const safeData = {
             code: event.code || 0,
@@ -301,24 +336,34 @@ export class WebSocketService {
           };
           this.emit('disconnected', safeData);
           
-          // Don't reconnect if it was a manual close or server shutdown
-          if (event.code === 1000 || event.code === 1001) {
-            console.log('WebSocket closed normally, not reconnecting');
+          // Don't reconnect if it was a manual close
+          if (this.isIntentionallyClosed || event.code === 1000) {
+            console.log('WebSocket closed intentionally, not reconnecting');
+            this.setConnectionState('disconnected');
             return;
           }
           
           // Attempt to reconnect with exponential backoff
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), 10000);
+            this.setConnectionState('reconnecting');
+            const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts), 30000);
             console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-            setTimeout(() => {
+            this.reconnectTimeout = setTimeout(() => {
               this.reconnectAttempts++;
               this.connect().catch(err => {
                 console.error('Reconnection failed:', err);
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                  this.setConnectionState('disconnected');
+                  this.emit('reconnection_failed', { 
+                    message: 'Failed to reconnect after maximum attempts',
+                    timestamp: new Date().toISOString()
+                  });
+                }
               });
             }, delay);
           } else {
             console.log('Max reconnection attempts reached');
+            this.setConnectionState('disconnected');
             this.emit('reconnection_failed', { 
               message: 'Failed to reconnect after maximum attempts',
               timestamp: new Date().toISOString()
@@ -333,7 +378,8 @@ export class WebSocketService {
           // Only pass safe, serializable data - never pass the error object directly
           const safeData = {
             message: 'WebSocket connection error occurred',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            state: this.connectionState
           };
           this.emit('error', safeData);
           // Don't reject with the raw error object
@@ -347,18 +393,81 @@ export class WebSocketService {
   }
 
   disconnect() {
+    this.isIntentionallyClosed = true;
+    this.stopPingInterval();
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     if (this.ws) {
-      this.ws.close();
+      this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
+    this.setConnectionState('disconnected');
   }
 
   send(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+    if (this.isConnected()) {
+      try {
+        this.ws.send(JSON.stringify(data));
+        return true;
+      } catch (error) {
+        console.error('Failed to send WebSocket message:', error);
+        return false;
+      }
     } else {
-      console.warn('WebSocket not connected');
+      console.warn('WebSocket not connected, current state:', this.connectionState);
+      return false;
     }
+  }
+  
+  // Set connection state and emit state change event
+  setConnectionState(state) {
+    if (this.connectionState !== state) {
+      this.connectionState = state;
+      this.emit('connection_state_changed', { state, timestamp: new Date().toISOString() });
+    }
+  }
+  
+  // Get current connection state
+  getConnectionState() {
+    return this.connectionState;
+  }
+  
+  // Check if connected
+  isConnected() {
+    return this.ws && this.ws.readyState === WebSocket.OPEN && this.connectionState === 'connected';
+  }
+  
+  // Start ping interval to keep connection alive
+  startPingInterval() {
+    this.stopPingInterval();
+    this.pingInterval = setInterval(() => {
+      if (this.isConnected()) {
+        this.send({ type: 'ping', timestamp: new Date().toISOString() });
+        
+        // Check if we haven't received a pong in 30 seconds
+        if (this.lastPingTime && Date.now() - this.lastPingTime > 30000) {
+          console.warn('No pong received in 30 seconds, reconnecting...');
+          this.ws.close(4000, 'Ping timeout');
+        }
+      }
+    }, 25000); // Send ping every 25 seconds
+  }
+  
+  // Stop ping interval
+  stopPingInterval() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+  
+  // Manual reconnect
+  reconnect() {
+    this.disconnect();
+    this.reconnectAttempts = 0;
+    return this.connect();
   }
 
   // Event listener system
