@@ -5,12 +5,16 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import xml.etree.ElementTree as ET
 from config.settings import settings
+import time
+import hashlib
 
 class BitcoinSentimentAnalyzer:
     def __init__(self):
         # Initialize classifier defensively to avoid startup crashes if HF token is missing/invalid
         self.classifier = None
         self.bitcoin_keywords = settings.BTC_KEYWORDS
+        self._cache = {}
+        self._cache_ttl_seconds = 300  # 5 minutes
         try:
             hf_token = settings.HF_TOKEN
             # Only pass token if it looks non-placeholder
@@ -44,17 +48,27 @@ class BitcoinSentimentAnalyzer:
             if not self._is_bitcoin_related(text):
                 return None
             
+            # Cache lookup (5 minutes)
+            norm = (text or '').strip().lower()
+            key = hashlib.sha256(norm.encode('utf-8')).hexdigest()
+            now = time.time()
+            cached = self._cache.get(key)
+            if cached and (now - cached[0]) < self._cache_ttl_seconds:
+                return cached[1]
+
             # Analyze sentiment
             if not self.classifier:
                 return None
             result = self.classifier(text)[0]
             
-            return {
+            out = {
                 "label": result["label"],  # positive/negative/neutral
                 "score": result["score"],
                 "asset": "BTC",
                 "text_preview": text[:100] + "..." if len(text) > 100 else text
             }
+            self._cache[key] = (now, out)
+            return out
         except Exception as e:
             print(f"Error analyzing sentiment: {str(e)}")
             return None

@@ -1,0 +1,31 @@
+# Render.com deployment configuration
+services:
+  - type: web
+    name: coinlink-backend
+    runtime: python
+    repo: https://github.com/yourusername/coinlink-mvp
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        fromDatabase:
+          name: coinlink-redis
+          property: connectionString
+      - key: COINBASE_API_KEY
+        sync: false
+      - key: COINBASE_API_SECRET
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://www.coin.link,https://coin.link
+    healthCheckPath: /health
+    
+databases:
+  - name: coinlink-redis
+    plan: starter
+    type: redis

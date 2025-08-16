@@ -1,0 +1,1 @@
+# Middleware Layer - Performance optimizations without affecting core logic

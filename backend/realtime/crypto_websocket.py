@@ -142,34 +142,35 @@ class CoinbaseWebSocketManager:
     async def fetch_initial_data(self):
         """Fetch initial price data via REST API"""
         async with httpx.AsyncClient() as client:
-            for symbol, name, product_id in self.TOP_50_SYMBOLS:
-                try:
-                    # Using public endpoint for price data
-                    response = await client.get(
-                        f"https://api.coinbase.com/v2/exchange-rates?currency={symbol}"
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        price = float(data.get('data', {}).get('rates', {}).get('USD', 0))
-                        
-                        # Calculate market cap
+            try:
+                # Fetch live market caps from Coinbase (approx via USD price * supply)
+                tasks = []
+                for symbol, name, product_id in self.TOP_50_SYMBOLS:
+                    tasks.append(client.get(f"https://api.exchange.coinbase.com/products/{product_id}/ticker"))
+                responses = await asyncio.gather(*tasks, return_exceptions=True)
+                for (symbol, name, product_id), resp in zip(self.TOP_50_SYMBOLS, responses):
+                    try:
+                        if isinstance(resp, Exception):
+                            continue
+                        data = resp.json()
+                        price = float(data.get('price', 0) or 0)
                         supply = self.CIRCULATING_SUPPLY.get(symbol, 1_000_000_000)
                         market_cap = price * supply
-                        
                         self.crypto_data[symbol] = CryptoData(
                             symbol=symbol,
                             name=name,
                             price=price,
-                            volume_24h=0,  # Will be updated via WebSocket
+                            volume_24h=float(data.get('volume', 0) or 0),
                             market_cap=market_cap,
-                            change_24h=0,  # Will be updated via WebSocket
+                            change_24h=float(data.get('change', 0) or 0),
                             circulating_supply=supply,
-                            rank=0,  # Will be calculated after all data loaded
+                            rank=0,
                             last_updated=datetime.now()
                         )
-                    await asyncio.sleep(0.1)  # Rate limiting
-                except Exception as e:
-                    logger.error(f"Error fetching initial data for {symbol}: {e}")
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.error(f"Error fetching initial snapshot: {e}")
         
         # Calculate initial rankings
         self._update_rankings()

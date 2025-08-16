@@ -13,7 +13,7 @@ const TradingViewWidget = () => {
     hide_legend: true,
     hide_volume: false,
     hotlist: false,
-    interval: 'D',
+    interval: '60',
     locale: 'en',
     save_image: false,
     style: '1',
@@ -25,7 +25,12 @@ const TradingViewWidget = () => {
     watchlist: [],
     withdateranges: true,
     compareSymbols: [],
-    studies: [],
+    studies: [
+      {
+        id: 'RSI',
+        inputs: { length: 14 },
+      }
+    ],
     autosize: true,
   }), []);
   const configString = useMemo(() => JSON.stringify(config), [config]);

@@ -46,16 +46,27 @@ const PromptFeed = ({ onPromptClick }) => {
             const title = it.title || 'Update';
             const text = it.content || '';
             const ts = it.timestamp ? new Date(it.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+            const isMarketReport = it.kind === 'report' && it.subtype === 'market';
             return (
               <button
                 key={idx}
                 onClick={() => onPromptClick && onPromptClick(text || title)}
                 className="shrink-0 px-3 py-2 rounded-md text-xs text-left border"
-                style={{ borderColor: st.borderColor, backgroundColor: st.bg, color: '#e5e7eb' }}
+                style={{ 
+                  borderColor: st.borderColor, 
+                  backgroundColor: st.bg, 
+                  color: '#e5e7eb',
+                  maxWidth: isMarketReport ? 560 : 220,
+                  whiteSpace: isMarketReport ? 'pre-line' : 'normal'
+                }}
                 title={title}
               >
                 <div className="font-semibold mb-0.5" style={{ color: '#fff' }}>{title}</div>
-                {text && <div className="opacity-80 line-clamp-2" style={{ maxWidth: 220 }}>{text}</div>}
+                {text && (
+                  isMarketReport
+                    ? <div className="opacity-90 text-[11px] leading-4">{text}</div>
+                    : <div className="opacity-80 line-clamp-2" style={{ maxWidth: 220 }}>{text}</div>
+                )}
                 {ts && <div className="mt-1 text-[10px] opacity-60">{ts}</div>}
               </button>
             );

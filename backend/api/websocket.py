@@ -112,7 +112,7 @@ class ConnectionManager:
         self.latest_crypto_data = crypto_data
         message = {
             "type": "crypto_ticker_update",
-            "data": crypto_data[:50],  # Top 50 only
+            "data": crypto_data[:20],  # Top 20 only
             "timestamp": datetime.now().isoformat()
         }
         await self.broadcast(message)

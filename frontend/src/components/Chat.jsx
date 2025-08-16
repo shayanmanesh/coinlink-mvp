@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { bitcoinAPI, systemAPI } from '../services/api';
 import { alerts$, connectRealtime } from '../services/realtime';
 import audioService from '../services/audioService';
-import AudioControls from './AudioControls';
+// import AudioControls from './AudioControls';
 import QuickAuth from './QuickAuth';
 import { bumpEngagement } from '../services/engagement';
 
@@ -34,31 +34,19 @@ const Chat = ({ isConnected }) => {
       {
         id: 'welcome',
         type: 'bot',
-        content: 'Welcome to CoinLink Bitcoin Analysis! Ask me anything about Bitcoin (BTC). Free users get 5 prompts. Sign up for 50 prompts per 12 hours.',
+        content: 'Welcome to CoinLink Bitcoin Analysis! Ask me anything about Bitcoin (BTC).',
         timestamp: new Date().toISOString(),
         sessionId: sessionId
       }
     ];
-    
-    if (userEmail) {
-      welcomeMessages.push({
-        id: 'auth-info',
-        type: 'system',
-        content: `Logged in as ${userEmail} - 50 prompts per 12 hours`,
-        timestamp: new Date().toISOString(),
-        sessionId: sessionId
-      });
-    }
-    
     setMessages(welcomeMessages);
-  }, [userEmail]);
+  }, []);
 
   // Subscribe to agent-initiated alert messages (inline chat)
   useEffect(() => {
     connectRealtime();
     const sub = alerts$.subscribe((alert) => {
       try {
-        // Expect only agent chat payloads now
         if (alert && (alert.text || alert.title)) {
           const now = new Date();
           const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -69,13 +57,11 @@ const Chat = ({ isConnected }) => {
               type: 'agent', 
               content: text, 
               timestamp: new Date().toISOString(),
-              sessionId: sessionId  // Add this line
+              sessionId: sessionId
             }]);
             setHasNewAlert(true);
             setTimeout(() => setHasNewAlert(false), 4000);
-            // Play alert sound for agent messages
-            audioService.playAlert();
-            // Scroll will auto-run via messages effect
+            // audioService.playAlert();
           }
         }
       } catch {}
@@ -83,14 +69,11 @@ const Chat = ({ isConnected }) => {
     return () => sub.unsubscribe();
   }, []);
 
-  
-
   // Handle auth success
   const handleAuthSuccess = (token, user) => {
     setAuthToken(token);
     setUserEmail(user.email);
     setShowAuth(false);
-    
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'system',
@@ -99,15 +82,13 @@ const Chat = ({ isConnected }) => {
       sessionId: sessionId
     }]);
   };
-  
-  // Handle logout
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userEmail');
     setAuthToken(null);
     setUserEmail(null);
     setRateLimitInfo(null);
-    
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'system',
@@ -120,20 +101,7 @@ const Chat = ({ isConnected }) => {
   const sendMessage = async (message = null) => {
     try {
       const messageToSend = message || inputMessage;
-      console.log('sendMessage called with:', messageToSend);
-      console.log('isConnected:', isConnected);
-      console.log('inputMessage:', inputMessage);
-      
-      if (!messageToSend || !messageToSend.trim()) {
-        console.log('Message is empty, returning');
-        return;
-      }
-      
-      // Remove the isConnected check to allow chat to work without WebSocket
-      // if (!isConnected) {
-      //   console.log('Not connected, returning');
-      //   return;
-      // }
+      if (!messageToSend || !messageToSend.trim()) return;
 
       const isPasswordField = messages.some(m => 
         m.type === 'system' && m.content.toLowerCase().includes('password')
@@ -142,73 +110,59 @@ const Chat = ({ isConnected }) => {
       const userMessage = {
         id: Date.now(),
         type: 'user',
-        content: isPasswordField ? '••••••••' : messageToSend, // Mask password display
+        content: isPasswordField ? '••••••••' : messageToSend,
         timestamp: new Date().toISOString(),
-        sessionId: sessionId  // Add this line
+        sessionId: sessionId
       };
 
-      console.log('Adding user message:', userMessage);
       setMessages(prev => [...prev, userMessage]);
       try { bumpEngagement(2); } catch {}
       if (!message) setInputMessage('');
       setIsLoading(true);
 
       try {
-        console.log('Calling bitcoinAPI.chat with:', messageToSend);
         const response = await bitcoinAPI.chat(messageToSend, sessionId, authToken);
-        console.log('Chat API response:', response);
-
         if (response && response.type === 'registration') {
           setIsPasswordStep(response.system_message.content.toLowerCase().includes('password'));
-          // Handle registration flow
           const systemMessage = {
             id: Date.now() + 1,
             type: 'system',
             content: response.system_message.content,
             timestamp: new Date().toISOString(),
-            sessionId: sessionId  // Add this line
+            sessionId: sessionId
           };
           setMessages(prev => [...prev, systemMessage]);
           try { bumpEngagement(1); } catch {}
-          // Play sound for user input needed
-          audioService.playUserInputNeeded();
         } else if (response && response.type === 'chat' && response.bot_response) {
-          // Handle normal chat
           setIsPasswordStep(false);
           const botMessage = {
             id: Date.now() + 1,
             type: 'bot',
             content: response.bot_response,
             timestamp: new Date().toISOString(),
-            sessionId: sessionId  // Add this line
+            sessionId: sessionId
           };
-
-          console.log('Adding bot message:', botMessage);
           setMessages(prev => [...prev, botMessage]);
           try { bumpEngagement(2); } catch {}
-          // Play sound for task completion
-          audioService.playTaskComplete();
+          // audioService.playTaskComplete();
         } else {
           throw new Error('Invalid response format from chat API');
         }
       } catch (error) {
-        console.error('Error sending message:', error);
         const detail = (error && (error.response?.data?.detail || error.message)) || 'Unknown error';
         const errorMessage = {
           id: Date.now() + 1,
           type: 'bot',
           content: `Error: ${detail}`,
           timestamp: new Date().toISOString(),
-          sessionId: sessionId  // Add this line
+          sessionId: sessionId
         };
         setMessages(prev => [...prev, errorMessage]);
-        // Play error sound
-        audioService.playError();
+        // audioService.playError();
       } finally {
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('Unexpected error in sendMessage:', error);
       setIsLoading(false);
     }
   };
@@ -220,28 +174,6 @@ const Chat = ({ isConnected }) => {
     }
   };
 
-  const [quickQuestions, setQuickQuestions] = useState([
-    "What's Bitcoin doing?",
-    "BTC analysis",
-    "Should I buy Bitcoin?",
-    "Bitcoin price prediction",
-    "Market sentiment",
-    "Bitcoin market psychology"
-  ]);
-
-  useEffect(() => {
-    let timer;
-    const updatePrompts = async () => {
-      const prompts = await systemAPI.getContextualPrompts();
-      if (Array.isArray(prompts) && prompts.length) {
-        setQuickQuestions(prompts);
-      }
-    };
-    updatePrompts();
-    timer = setInterval(updatePrompts, 15 * 60 * 1000);
-    return () => timer && clearInterval(timer);
-  }, []);
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Show auth modal if needed */}
@@ -251,8 +183,7 @@ const Chat = ({ isConnected }) => {
           onClose={() => setShowAuth(false)}
         />
       )}
-      
-      {/* Header with Auth */}
+      {/* Header simplified */}
       <div className="text-white border-b border-gray-700" style={{ backgroundColor: '#0F0F0F' }}>
         <div className="max-w-3xl mx-auto px-4 py-3 font-bold text-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -267,29 +198,11 @@ const Chat = ({ isConnected }) => {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {userEmail ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-normal text-gray-400">{userEmail}</span>
-                <button
-                  onClick={handleLogout}
-                  className="text-xs font-normal text-gray-500 hover:text-white"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAuth(true)}
-                className="px-3 py-1 text-sm font-normal bg-orange-500 hover:bg-orange-600 text-white rounded transition-colors"
-              >
-                Sign Up
-              </button>
-            )}
-            <AudioControls />
+            {/* Removed Sign Up and AudioControls for production focus */}
+            {/* <AudioControls /> */}
           </div>
         </div>
       </div>
-
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto min-h-0" style={{ backgroundColor: '#0F0F0F' }}>
@@ -363,33 +276,15 @@ const Chat = ({ isConnected }) => {
         </div>
       </div>
 
-      {/* Pre-configured Prompts - Above chat input, styled like dark pills */}
-      <div className="px-4 py-2 flex-shrink-0" style={{ backgroundColor: '#0F0F0F' }}>
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-start gap-2 overflow-x-auto pb-2 scrollbar-thin" style={{ scrollbarColor: '#2A2A2A #121212' }}>
-            {quickQuestions.map((question, index) => (
-              <button
-                key={index}
-                onClick={() => sendMessage(question)}
-                disabled={isLoading}
-                className="px-3 py-2 rounded-full text-xs whitespace-nowrap flex-shrink-0 text-gray-200 bg-[#1e1e1e] border border-[#2a2a2a] hover:bg-[#262626] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {question}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Chat Input - dark rounded field with Cursor-style send icon */}
+      {/* Chat Input */}
       <div className="px-4 py-4 border-t border-gray-700 flex-shrink-0" style={{ backgroundColor: '#0F0F0F' }}>
         <div className="max-w-3xl mx-auto relative">
           <input
-            type={isPasswordStep ? "password" : "text"} // Toggle input type
+            type={isPasswordStep ? "password" : "text"}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about Bitcoin or type /register to register your free account"
+            placeholder="Ask about Bitcoin"
             disabled={isLoading}
             className="w-full pr-14 text-gray-200 placeholder-gray-200 px-5 py-3 rounded-full text-base bg-[#1B1B1B] border border-[#2A2A2A] focus:outline-none focus:border-[#3A3A3A] disabled:opacity-50 shadow-inner"
           />

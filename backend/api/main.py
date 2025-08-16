@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import asyncio
 import json
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
@@ -24,6 +25,7 @@ from slowapi.errors import RateLimitExceeded
 from auth.registration_state import RegistrationFlow
 from auth.routes import router as auth_router
 from auth.auth_api import router as simple_auth_router
+from agents.analytics_agent import AnalyticsAgent
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -37,14 +39,25 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Add CORS middleware
+# Add CORS middleware - Enhanced for production
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://0.0.0.0:3000",
+]
+
+# Add production domains
+if os.getenv("NODE_ENV") == "production":
+    CORS_ORIGINS.extend([
+        "https://www.coin.link",
+        "https://coin.link",
+        "https://coinlink.vercel.app",
+        "https://*.vercel.app",  # For preview deployments
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,6 +72,7 @@ rt_alert_engine = RealTimeAlertEngine()
 rt_poller = MarketDataPoller(rt_alert_engine)
 coinbase_ws = CoinbaseWebSocketClient(rt_alert_engine)
 registration_flow = RegistrationFlow()
+analytics_agent = AnalyticsAgent(rt_alert_engine)
 
 # Add tools to the analyst
 bitcoin_tools = get_bitcoin_tools()
@@ -101,6 +115,10 @@ async def startup_event():
     asyncio.create_task(rt_alert_engine.push_market_insights())
     asyncio.create_task(rt_alert_engine.monitor_correlation())
     asyncio.create_task(rt_alert_engine.push_technical_reports())
+    # Start continuous 2s market report stream
+    asyncio.create_task(rt_alert_engine.start_market_report_stream())
+    # Start analytics agent streams (sentiment updates/aggregates, market reports)
+    asyncio.create_task(analytics_agent.start())
     
     # Start registration cleanup task
     asyncio.create_task(registration_cleanup_task())
@@ -137,17 +155,23 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "services": {
-            "bitcoin_analyst": "active",
-            "sentiment_service": "active",
-            "bitcoin_monitor": "active",
-            "alert_engine": "active"
+    """Health check endpoint - Enhanced with monitoring layer"""
+    try:
+        from monitoring.health import health_monitor
+        health_data = await health_monitor.get_system_health()
+        return health_data
+    except Exception:
+        # Fallback to original simple health check if monitoring fails
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "bitcoin_analyst": "active",
+                "sentiment_service": "active",
+                "bitcoin_monitor": "active",
+                "alert_engine": "active"
+            }
         }
-    }
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -374,80 +398,10 @@ async def get_connection_count():
 
 @app.get("/api/prompts")
 async def get_prompts():
-    """Get dynamic contextual prompts for UI"""
+    """Get dynamic contextual prompts for UI (kept for compatibility)."""
     try:
-        price = await bitcoin_monitor.get_bitcoin_price()
-        sentiment = await bitcoin_monitor.get_bitcoin_sentiment()
-        # Pull latest technicals from real-time engine if available
-        comp = rt_alert_engine.metrics.compute()
-        rsi_live = rt_alert_engine.get_current_rsi()
-        # Debug logging for RSI prompt
-        print("[Prompts] Market compute:", comp)
-        print("[Prompts] RSI live:", rsi_live)
-        rsi = rsi_live if rsi_live is not None else (comp.get('rsi') if comp else None)
-        # Fallback: compute RSI from hourly candles to align with chat snapshot if live RSI is unavailable or default 50
-        def _compute_rsi(closes, period: int = 14):
-            try:
-                if not closes or len(closes) < period + 1:
-                    return None
-                gains = []
-                losses = []
-                for i in range(1, period + 1):
-                    delta = float(closes[-i]) - float(closes[-(i + 1)])
-                    if delta > 0:
-                        gains.append(delta)
-                        losses.append(0.0)
-                    else:
-                        gains.append(0.0)
-                        losses.append(-delta)
-                avg_gain = sum(gains) / period
-                avg_loss = sum(losses) / period if sum(losses) > 0 else 0.0
-                if avg_loss == 0:
-                    return 100.0
-                rs = avg_gain / avg_loss
-                rsi_val = 100 - (100 / (1 + rs))
-                return max(0.0, min(100.0, rsi_val))
-            except Exception:
-                return None
-
-        rsi_candles = None
-        try:
-            candles_resp = get_bitcoin_candles("BTC-USD", granularity=3600, limit=60)
-            candles = candles_resp.get("candles", []) if isinstance(candles_resp, dict) else []
-            closes = [c.get("close") for c in candles if isinstance(c, dict) and c.get("close") is not None]
-            rsi_candles = _compute_rsi(closes, 14)
-        except Exception:
-            rsi_candles = None
-        # Prefer candle RSI when live RSI is missing or looks like default placeholder (50.0)
-        if (rsi is None or abs(float(rsi) - 50.0) < 1e-6) and (rsi_candles is not None):
-            rsi = rsi_candles
-        support = comp.get('support') if comp else None
-        resistance = comp.get('resistance') if comp else None
-        last_price = rt_alert_engine.metrics.ticks[-1].price if rt_alert_engine.metrics.ticks else None
-        near_resistance = bool(last_price and resistance and abs(last_price - resistance) / resistance < 0.005)
-        near_support = bool(last_price and support and abs(last_price - support) / support < 0.005)
-
-        # Normalize RSI to plain float for prompt generator
-        rsi_val = None
-        try:
-            if rsi is not None:
-                rsi_val = float(rsi)
-        except Exception:
-            rsi_val = None
-
-        market_data = {
-            'rsi': rsi_val if isinstance(rsi_val, (int, float)) else ((sentiment or {}).get('average_score', 0) * 100),
-            'price_change_1h': 0,
-            'price_change_24h': (price or {}).get('change_24h', 0),
-            'near_resistance': near_resistance,
-            'near_support': near_support,
-            'sentiment': (sentiment or {}).get('overall_sentiment', 'neutral'),
-            'sentiment_confidence': (sentiment or {}).get('average_score', 0),
-        }
-        prompts = get_contextual_prompts(market_data)
-        print("[Prompts] Final market_data:", market_data)
-        print("[Prompts] Returned prompts:", prompts)
-        return { 'prompts': prompts, 'timestamp': datetime.now().isoformat() }
+        # Deprecated: intelligent prompt feed is provided via WS 'prompt_feed'
+        return { 'prompts': [], 'timestamp': datetime.now().isoformat() }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating prompts: {str(e)}")
 

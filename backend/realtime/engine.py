@@ -4,13 +4,14 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Deque, Dict, Optional, Tuple, List
+from typing import Deque, Dict, Optional, Tuple, List, Any
+import uuid
 import math
 import numpy as np
 
 from api.websocket import manager, websocket_handler
 from sentiment.analyzer import BitcoinSentimentService
-from tools.coinbase_tools import get_bitcoin_price
+from tools.coinbase_tools import get_bitcoin_price, get_bitcoin_candles
 from config.settings import settings
 
 
@@ -132,8 +133,248 @@ class RealTimeAlertEngine:
         # Simple duplicate content suppression window
         self._last_agent_message_text: Optional[str] = None
         self._last_agent_message_ts: float = 0.0
+        # Signature-based dedup by alert content (ignores timestamps)
+        self._recent_alert_signatures: Dict[str, float] = {}
         # Prompt feed buffer (rolling)
         self._prompt_feed: Deque[Dict] = deque(maxlen=50)
+        # Streaming market report state
+        self._market_report_id: Optional[str] = None
+        self._market_report_created_at: Optional[datetime] = None
+        self._hist_returns_cache: Dict[str, Any] = {
+            'last_fetch': 0.0,
+            'data': {'d5': None, 'w1': None, 'm1': None}
+        }
+
+    async def push_prompt_card(self, card: Dict) -> None:
+        """Append a prompt card to the feed and broadcast, with lightweight dedup."""
+        try:
+            # Simple dedup by title+content signature within the current buffer
+            sig = f"{card.get('title','')}|{card.get('content','')}|{card.get('kind','')}"
+            for c in list(self._prompt_feed)[:10]:
+                csig = f"{c.get('title','')}|{c.get('content','')}|{c.get('kind','')}"
+                if csig == sig:
+                    return
+            self._prompt_feed.appendleft(card)
+            await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+        except Exception:
+            pass
+
+    # --- Streaming Market Report ---
+    def _format_triangle(self, pct: Optional[float]) -> str:
+        try:
+            if pct is None:
+                return "0.00%"
+            arrow = '▲' if pct >= 0 else '▼'
+            return f"{arrow}{abs(pct):.2f}%"
+        except Exception:
+            return "0.00%"
+
+    def _find_tick_at_or_before(self, target: datetime) -> Optional[Tick]:
+        try:
+            for t in reversed(self.metrics.ticks):
+                if t.ts <= target:
+                    return t
+            return self.metrics.ticks[0] if self.metrics.ticks else None
+        except Exception:
+            return None
+
+    def _compute_price_change_pct(self, minutes: int, now: Optional[datetime] = None) -> Optional[float]:
+        if not self.metrics.ticks:
+            return None
+        now_dt = now or datetime.utcnow()
+        base_tick = self._find_tick_at_or_before(now_dt - timedelta(minutes=minutes))
+        if not base_tick:
+            return None
+        last_price = self.metrics.ticks[-1].price
+        if not base_tick.price:
+            return 0.0
+        return ((last_price - base_tick.price) / base_tick.price) * 100.0
+
+    def _compute_volume_in_window(self, minutes: int, now: Optional[datetime] = None) -> Optional[float]:
+        if not self.metrics.ticks:
+            return None
+        now_dt = now or datetime.utcnow()
+        end_tick = self._find_tick_at_or_before(now_dt)
+        start_tick = self._find_tick_at_or_before(now_dt - timedelta(minutes=minutes))
+        if not end_tick or not start_tick:
+            return None
+        try:
+            vol = max(0.0, (end_tick.volume24h or 0.0) - (start_tick.volume24h or 0.0))
+            return vol
+        except Exception:
+            return None
+
+    def _compute_prev_window_volume(self, minutes: int, now: Optional[datetime] = None) -> Optional[float]:
+        now_dt = now or datetime.utcnow()
+        start_prev = now_dt - timedelta(minutes=minutes * 2)
+        end_prev = now_dt - timedelta(minutes=minutes)
+        end_prev_tick = self._find_tick_at_or_before(end_prev)
+        start_prev_tick = self._find_tick_at_or_before(start_prev)
+        if not end_prev_tick or not start_prev_tick:
+            return None
+        try:
+            return max(0.0, (end_prev_tick.volume24h or 0.0) - (start_prev_tick.volume24h or 0.0))
+        except Exception:
+            return None
+
+    def _compute_historical_returns(self, current_price: float) -> Dict[str, Optional[float]]:
+        # Cached for 5 minutes to avoid rate limits
+        try:
+            now_ts = time.time()
+            cache_age = now_ts - float(self._hist_returns_cache.get('last_fetch', 0.0))
+            if cache_age < 300 and self._hist_returns_cache.get('data'):
+                return dict(self._hist_returns_cache['data'])
+            data = get_bitcoin_candles("BTC-USD", granularity=86400, limit=60)
+            vals = {'d5': None, 'w1': None, 'm1': None}
+            if data and not data.get('error'):
+                candles = data.get('candles', [])
+                closes = [c.get('close') for c in candles]
+                if closes:
+                    # Use current price vs historical closes at offsets
+                    def pct_vs_offset(days: int) -> Optional[float]:
+                        try:
+                            if len(closes) > days:
+                                base = float(closes[-(days + 1)])
+                                if base:
+                                    return ((current_price - base) / base) * 100.0
+                        except Exception:
+                            return None
+                        return None
+                    vals['d5'] = pct_vs_offset(5)
+                    vals['w1'] = pct_vs_offset(7)
+                    vals['m1'] = pct_vs_offset(30)
+            self._hist_returns_cache = {'last_fetch': now_ts, 'data': vals}
+            return vals
+        except Exception:
+            return {'d5': None, 'w1': None, 'm1': None}
+
+    def _format_age(self, created_at: Optional[datetime]) -> str:
+        if not created_at:
+            return ""
+        delta = datetime.utcnow() - created_at
+        total_s = int(delta.total_seconds())
+        m, s = divmod(total_s, 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            return f"{h}h {m}m {s}s"
+        if m > 0:
+            return f"{m}m {s}s"
+        return f"{s}s"
+
+    def _build_market_report_snapshot(self) -> Optional[Dict[str, Any]]:
+        if not self.metrics.ticks:
+            return None
+        now = datetime.utcnow()
+        last_tick = self.metrics.ticks[-1]
+        price = float(last_tick.price)
+        comp = self.metrics.compute(now)
+        # Price changes
+        chg_10m = self._compute_price_change_pct(10, now) or 0.0
+        chg_30m = self._compute_price_change_pct(30, now) or 0.0
+        chg_1h = self._compute_price_change_pct(60, now) or 0.0
+        # Volumes
+        vol_10m = self._compute_volume_in_window(10, now) or 0.0
+        vol_30m = self._compute_volume_in_window(30, now) or 0.0
+        vol_1h = self._compute_volume_in_window(60, now) or 0.0
+        # Volume change vs previous window
+        prev_vol_10m = self._compute_prev_window_volume(10, now) or 0.0
+        vol_10m_change_pct = ((vol_10m / prev_vol_10m) - 1.0) * 100.0 if prev_vol_10m > 0 else 0.0
+        # Historical returns
+        hist = self._compute_historical_returns(price)
+        rsi_val = comp.get('rsi') if comp else None
+        support = comp.get('support') if comp else None
+        resistance = comp.get('resistance') if comp else None
+        # Title with dynamic age
+        age = self._format_age(self._market_report_created_at)
+        title = f"Bitcoin (BTC) ${price:,.2f} {self._format_triangle(chg_10m)} {age}"
+        # Body content
+        lines: List[str] = []
+        lines.append(
+            (
+                f"Bitcoin (BTC) now selling at ${price:,.2f} {self._format_triangle(chg_10m)} "
+                f"with ${vol_10m:,.2f} {self._format_triangle(vol_10m_change_pct)} volume traded in the last 10 minutes, "
+                f"{self._format_triangle(hist.get('d5'))}5D {self._format_triangle(hist.get('w1'))}1W {self._format_triangle(hist.get('m1'))}M"
+            )
+        )
+        lines.append("")
+        lines.append("Bitcoin (BTC) Price & Volume Performance")
+        lines.append(
+            f"Bitcoin Price ${price:,.2f} ({self._format_triangle(chg_10m)} 10MIN) • "
+            f"{self._format_triangle(chg_30m)} 30MIN • {self._format_triangle(chg_1h)} 1H"
+        )
+        lines.append(
+            f"Bitcoin Volume ${vol_10m:,.2f} (10MIN) • ${vol_30m:,.2f} (30MIN) • ${vol_1h:,.2f} (1H)"
+        )
+        # Technical analysis concise line
+        ta_bits: List[str] = []
+        if isinstance(rsi_val, (int, float)):
+            ta_bits.append(f"RSI(14): {rsi_val:.1f}")
+            if rsi_val >= 70:
+                ta_bits.append("overbought")
+            elif rsi_val <= 30:
+                ta_bits.append("oversold")
+        if isinstance(support, (int, float)) and isinstance(resistance, (int, float)):
+            ta_bits.append(f"S/R: {support:,.0f}/{resistance:,.0f}")
+        ta_bits.append("momentum: " + ("positive" if chg_10m >= 0 else "negative"))
+        lines.append("")
+        lines.append("Technical Analysis:")
+        lines.append(" ")
+        lines.append(" ".join(ta_bits))
+
+        content = "\n".join(lines)
+        snapshot = {
+            'report_id': self._market_report_id,
+            'created_at': self._market_report_created_at.isoformat() if self._market_report_created_at else None,
+            'title': title,
+            'content': content,
+            'price': price,
+            'chg_10m_pct': chg_10m,
+            'vol_10m': vol_10m,
+            'timestamp': datetime.utcnow().isoformat(),
+        }
+        return snapshot
+
+    async def _upsert_report_card(self, snapshot: Dict[str, Any]):
+        try:
+            updated_card = {
+                'kind': 'report',
+                'subtype': 'market',
+                'report_id': snapshot.get('report_id'),
+                'title': snapshot.get('title'),
+                'content': snapshot.get('content'),
+                'timestamp': snapshot.get('timestamp'),
+                'priority': 'high'
+            }
+            # Replace existing market report card or insert at front
+            existing_idx = None
+            buf_list = list(self._prompt_feed)
+            for i, c in enumerate(buf_list):
+                if c.get('kind') == 'report' and c.get('subtype') == 'market' and c.get('report_id') == self._market_report_id:
+                    existing_idx = i
+                    break
+            if existing_idx is not None:
+                buf_list[existing_idx] = updated_card
+                self._prompt_feed = deque(buf_list, maxlen=self._prompt_feed.maxlen)
+            else:
+                self._prompt_feed.appendleft(updated_card)
+            await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+        except Exception:
+            pass
+
+    async def start_market_report_stream(self):
+        """Continuously emit an updating market report card every ~2 seconds."""
+        # Initialize report session
+        if not self._market_report_id:
+            self._market_report_id = str(uuid.uuid4())
+            self._market_report_created_at = datetime.utcnow()
+        while True:
+            try:
+                snap = self._build_market_report_snapshot()
+                if snap:
+                    await self._upsert_report_card(snap)
+            except Exception:
+                pass
+            await asyncio.sleep(2)
 
     def _should_send_alert(self, alert_type: str) -> bool:
         now = time.time()
@@ -230,6 +471,7 @@ class RealTimeAlertEngine:
                 pass
             if self._should_send_alert('resistance_breach'):
                 await self._alert('Resistance breach', {'price': price, 'resistance': resistance})
+                # Removed: resistance-breach engagement prompt
         if support and price < support * sup_hyst:
             try:
                 print(f"[AlertCheck] TRIGGER Support breach: price={price:.2f} sup={support:.2f}")
@@ -280,16 +522,33 @@ class RealTimeAlertEngine:
                 content = f"🧭 Sentiment leading price by ~{lag}m (corr={corr}) ({ts})"
             else:
                 content = f"ℹ️ {title} ({ts})"
-            # Deduplicate identical content within configured window
+            # Deduplicate identical alerts within configured window (timestamp-agnostic)
             now_ts = time.time()
-            if self._last_agent_message_text == content and (now_ts - self._last_agent_message_ts) < float(getattr(settings, 'ALERT_DEDUP_WINDOW_SECONDS', 120)):
+            # Build signature from title and rounded payload values
+            try:
+                sig_parts: List[str] = [title.lower()]
+                for k in sorted(payload.keys()):
+                    v = payload.get(k)
+                    if isinstance(v, (int, float)):
+                        sig_parts.append(f"{k}:{round(float(v), 2)}")
+                    else:
+                        if k in ("timestamp",):
+                            continue
+                        sig_parts.append(f"{k}:{str(v)}")
+                signature = "|".join(sig_parts)
+            except Exception:
+                signature = title.lower()
+            window_s = float(getattr(settings, 'ALERT_DEDUP_WINDOW_SECONDS', 120))
+            last_sig_ts = self._recent_alert_signatures.get(signature, 0.0)
+            if (now_ts - last_sig_ts) < window_s:
                 try:
-                    self.logger.info("Suppressed duplicate agent chat within window: %s", content)
+                    self.logger.info("Suppressed duplicate alert signature within window: %s", signature)
                 except Exception:
                     pass
                 return
             self._last_agent_message_text = content
             self._last_agent_message_ts = now_ts
+            self._recent_alert_signatures[signature] = now_ts
             try:
                 self.logger.info("Broadcasting agent chat: %s", content)
             except Exception:
@@ -527,8 +786,7 @@ class RealTimeAlertEngine:
                             'timestamp': datetime.utcnow().isoformat(),
                             'priority': 'normal'
                         }
-                        self._prompt_feed.appendleft(card)
-                        await manager.broadcast({'type': 'prompt_feed', 'data': list(self._prompt_feed)})
+                        await self.push_prompt_card(card)
                     except Exception:
                         pass
             except Exception:
