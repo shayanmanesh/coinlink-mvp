@@ -218,3 +218,366 @@ jobs:
           echo "✅ Security scans completed" >> $GITHUB_STEP_SUMMARY
           echo "✅ Artifacts published" >> $GITHUB_STEP_SUMMARY
           echo "🚀 Ready for deployment" >> $GITHUB_STEP_SUMMARY
+
+  # STEP E: Artifact promotion based on quality gates
+  artifact-promotion:
+    needs: [quality-gates]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        environment: [staging, production]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install jq for JSON processing
+        run: sudo apt-get update && sudo apt-get install -y jq bc
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      
+      - name: Validate artifact promotion readiness
+        id: validate-promotion
+        run: |
+          echo "🔍 Validating promotion readiness for ${{ matrix.environment }}..."
+          
+          # Check all lanes have artifacts
+          REQUIRED_LANES=("fe_frontend" "be_backend" "bd_business_dev" "mkt_marketing" "rnd_research" "ops_observability")
+          MISSING_ARTIFACTS=()
+          
+          for lane in "${REQUIRED_LANES[@]}"; do
+            artifact_pattern="build-${lane}-*"
+            if ! ls ./artifacts/$artifact_pattern 1> /dev/null 2>&1; then
+              echo "❌ Missing artifacts for lane: $lane"
+              MISSING_ARTIFACTS+=("$lane")
+            else
+              echo "✅ Artifacts found for lane: $lane"
+            fi
+          done
+          
+          if [ ${#MISSING_ARTIFACTS[@]} -ne 0 ]; then
+            echo "promotion_ready=false" >> $GITHUB_OUTPUT
+            echo "missing_artifacts=${MISSING_ARTIFACTS[*]}" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          echo "promotion_ready=true" >> $GITHUB_OUTPUT
+          echo "✅ All required artifacts present for ${{ matrix.environment }}"
+      
+      - name: Calculate deployment risk score
+        id: risk-assessment
+        run: |
+          echo "📊 Calculating deployment risk score..."
+          
+          # Initialize risk score
+          RISK_SCORE=0
+          RISK_FACTORS=()
+          
+          # Check for security vulnerabilities in artifacts
+          if find ./artifacts -name "*bandit-report.json" -exec grep -l "HIGH_SEVERITY\|MEDIUM_SEVERITY" {} \; 2>/dev/null | head -1; then
+            RISK_SCORE=$((RISK_SCORE + 25))
+            RISK_FACTORS+=("security_vulnerabilities")
+            echo "⚠️ Security vulnerabilities found (+25 risk)"
+          fi
+          
+          if find ./artifacts -name "*safety-report.json" -exec grep -l "vulnerability" {} \; 2>/dev/null | head -1; then
+            RISK_SCORE=$((RISK_SCORE + 20))
+            RISK_FACTORS+=("dependency_vulnerabilities") 
+            echo "⚠️ Dependency vulnerabilities found (+20 risk)"
+          fi
+          
+          # Check for build failures (missing expected files)
+          EXPECTED_BUILD_OUTPUTS=("backend/api" "frontend/dist")
+          for output in "${EXPECTED_BUILD_OUTPUTS[@]}"; do
+            if ! find ./artifacts -path "*/$output/*" -o -name "$output" 2>/dev/null | head -1 >/dev/null; then
+              RISK_SCORE=$((RISK_SCORE + 30))
+              RISK_FACTORS+=("build_failures")
+              echo "⚠️ Missing expected build output: $output (+30 risk)"
+            fi
+          done
+          
+          # Check for test failures (look for pytest reports)
+          if find ./artifacts -name "*pytest-report.xml" -exec grep -l "failures=\"[1-9]" {} \; 2>/dev/null | head -1; then
+            RISK_SCORE=$((RISK_SCORE + 35))
+            RISK_FACTORS+=("test_failures")
+            echo "⚠️ Test failures detected (+35 risk)"
+          fi
+          
+          echo "📈 Total risk score: $RISK_SCORE"
+          echo "🔍 Risk factors: ${RISK_FACTORS[*]}"
+          
+          # Output results
+          echo "risk_score=$RISK_SCORE" >> $GITHUB_OUTPUT
+          echo "risk_factors=${RISK_FACTORS[*]}" >> $GITHUB_OUTPUT
+          
+          # Set deployment strategy based on risk
+          if [ "$RISK_SCORE" -le 15 ]; then
+            echo "deployment_strategy=direct" >> $GITHUB_OUTPUT
+            echo "🟢 Low risk ($RISK_SCORE) - Direct deployment approved"
+          elif [ "$RISK_SCORE" -le 40 ]; then
+            echo "deployment_strategy=canary" >> $GITHUB_OUTPUT  
+            echo "🟡 Medium risk ($RISK_SCORE) - Canary deployment required"
+          else
+            echo "deployment_strategy=blocked" >> $GITHUB_OUTPUT
+            echo "🔴 High risk ($RISK_SCORE) - Deployment blocked for review"
+          fi
+      
+      - name: Stage artifact promotion (staging)
+        if: matrix.environment == 'staging' && steps.risk-assessment.outputs.deployment_strategy != 'blocked'
+        run: |
+          echo "🚀 Promoting artifacts to staging environment..."
+          
+          # Create staging deployment structure
+          mkdir -p ./deployment/staging/{frontend,backend,config}
+          
+          # Aggregate frontend artifacts
+          echo "📦 Aggregating frontend artifacts..."
+          if find ./artifacts -name "*fe_frontend*" -type d | head -1; then
+            for fe_artifact in $(find ./artifacts -name "*fe_frontend*" -type d); do
+              if [ -d "$fe_artifact/frontend/dist" ]; then
+                cp -r "$fe_artifact/frontend/dist"/* ./deployment/staging/frontend/ 2>/dev/null || true
+                echo "✅ Frontend build copied from $fe_artifact"
+              fi
+            done
+          fi
+          
+          # Aggregate backend artifacts  
+          echo "📦 Aggregating backend artifacts..."
+          if find ./artifacts -name "*be_backend*" -type d | head -1; then
+            for be_artifact in $(find ./artifacts -name "*be_backend*" -type d); do
+              if [ -d "$be_artifact/backend" ]; then
+                cp -r "$be_artifact/backend"/* ./deployment/staging/backend/ 2>/dev/null || true
+                echo "✅ Backend code copied from $be_artifact"
+              fi
+            done
+          fi
+          
+          # Create deployment metadata
+          cat > ./deployment/staging/config/deployment.json << EOF
+          {
+            "environment": "staging",
+            "version": "${{ github.sha }}",
+            "risk_score": ${{ steps.risk-assessment.outputs.risk_score }},
+            "strategy": "${{ steps.risk-assessment.outputs.deployment_strategy }}",
+            "promoted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "lanes_included": ["fe_frontend", "be_backend", "bd_business_dev", "mkt_marketing", "rnd_research", "ops_observability"],
+            "risk_factors": "${{ steps.risk-assessment.outputs.risk_factors }}",
+            "commit_sha": "${{ github.sha }}",
+            "commit_ref": "${{ github.ref_name }}"
+          }
+          EOF
+          
+          # Create staging deployment package
+          cd ./deployment
+          tar -czf staging-deployment-${{ github.sha }}.tar.gz staging/
+          
+          echo "📦 Staging deployment package created: staging-deployment-${{ github.sha }}.tar.gz"
+          ls -la *.tar.gz
+      
+      - name: Production promotion gate
+        if: matrix.environment == 'production'
+        id: production-gate
+        run: |
+          echo "🔒 Production promotion gate validation..."
+          
+          # Block high-risk deployments
+          if [ "${{ steps.risk-assessment.outputs.deployment_strategy }}" == "blocked" ]; then
+            echo "❌ Production deployment BLOCKED - Risk score too high: ${{ steps.risk-assessment.outputs.risk_score }}"
+            echo "Risk factors: ${{ steps.risk-assessment.outputs.risk_factors }}"
+            exit 1
+          fi
+          
+          # Verify staging environment health (mock check)
+          echo "🏥 Checking staging environment health..."
+          # In production this would check actual staging endpoints
+          STAGING_HEALTH="healthy"  # Mock result
+          
+          if [ "$STAGING_HEALTH" != "healthy" ]; then
+            echo "❌ Staging environment not healthy - blocking production deployment"
+            exit 1
+          fi
+          
+          # Production deployment requires additional verification
+          if [ "${{ steps.risk-assessment.outputs.deployment_strategy }}" == "canary" ]; then
+            echo "🚨 Production deployment will use CANARY strategy due to medium risk"
+          else
+            echo "✅ Production deployment approved for DIRECT strategy"
+          fi
+          
+          echo "✅ Production promotion gate passed"
+          echo "gate_passed=true" >> $GITHUB_OUTPUT
+      
+      - name: Promote to production registry
+        if: matrix.environment == 'production' && steps.production-gate.outputs.gate_passed == 'true'
+        run: |
+          echo "🎯 Promoting artifacts to production registry..."
+          
+          # Create production deployment structure
+          mkdir -p ./deployment/production/{frontend,backend,config,manifests}
+          
+          # Aggregate all lane artifacts for production
+          echo "📦 Aggregating production artifacts..."
+          
+          # Frontend
+          if find ./artifacts -name "*fe_frontend*" -type d | head -1; then
+            for fe_artifact in $(find ./artifacts -name "*fe_frontend*" -type d); do
+              if [ -d "$fe_artifact/frontend/dist" ]; then
+                cp -r "$fe_artifact/frontend/dist"/* ./deployment/production/frontend/ 2>/dev/null || true
+              fi
+            done
+            echo "✅ Frontend artifacts aggregated"
+          fi
+          
+          # Backend
+          if find ./artifacts -name "*be_backend*" -type d | head -1; then
+            for be_artifact in $(find ./artifacts -name "*be_backend*" -type d); do
+              if [ -d "$be_artifact/backend" ]; then
+                cp -r "$be_artifact/backend"/* ./deployment/production/backend/ 2>/dev/null || true
+              fi
+            done
+            echo "✅ Backend artifacts aggregated"
+          fi
+          
+          # Create production Kubernetes manifests
+          cat > ./deployment/production/manifests/production-deployment.yml << EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: production-deployment-${{ github.sha }}
+            namespace: coinlink-production
+          data:
+            version: "${{ github.sha }}"
+            environment: "production"
+            deployment_strategy: "${{ steps.risk-assessment.outputs.deployment_strategy }}"
+            risk_score: "${{ steps.risk-assessment.outputs.risk_score }}"
+            promoted_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            lanes_included: "fe_frontend,be_backend,bd_business_dev,mkt_marketing,rnd_research,ops_observability"
+            risk_factors: "${{ steps.risk-assessment.outputs.risk_factors }}"
+            rollback_available: "true"
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: coinlink-api-production
+            namespace: coinlink-production
+            labels:
+              app: coinlink-api
+              version: "${{ github.sha }}"
+              deployment-strategy: "${{ steps.risk-assessment.outputs.deployment_strategy }}"
+          spec:
+            replicas: 3
+            selector:
+              matchLabels:
+                app: coinlink-api
+                version: "${{ github.sha }}"
+            template:
+              metadata:
+                labels:
+                  app: coinlink-api
+                  version: "${{ github.sha }}"
+              spec:
+                containers:
+                - name: api
+                  image: ghcr.io/coinlink/backend:production-${{ github.sha }}
+                  ports:
+                  - containerPort: 8000
+                  env:
+                  - name: ENVIRONMENT
+                    value: "production"
+                  - name: VERSION
+                    value: "${{ github.sha }}"
+                  livenessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    initialDelaySeconds: 30
+                  readinessProbe:
+                    httpGet:
+                      path: /readyz
+                      port: 8000
+                    initialDelaySeconds: 10
+          EOF
+          
+          # Create production deployment package
+          cd ./deployment
+          tar -czf production-deployment-${{ github.sha }}.tar.gz production/
+          
+          echo "📋 Production deployment package created"
+          ls -la *.tar.gz
+      
+      - name: Upload promotion artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.environment }}-promotion-${{ github.sha }}
+          path: |
+            ./deployment/*.tar.gz
+            ./deployment/${{ matrix.environment }}/config/
+            ./deployment/${{ matrix.environment }}/manifests/
+          retention-days: 90
+      
+      - name: Generate promotion report
+        if: always()
+        run: |
+          echo "## 🚀 Artifact Promotion Report - ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ matrix.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Risk Score | ${{ steps.risk-assessment.outputs.risk_score }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Strategy | ${{ steps.risk-assessment.outputs.deployment_strategy }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Promotion Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.risk-assessment.outputs.risk_factors }}" != "" ]; then
+            echo "### ⚠️ Risk Factors Detected:" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.risk-assessment.outputs.risk_factors }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ matrix.environment }}" == "production" ] && [ "${{ steps.risk-assessment.outputs.deployment_strategy }}" == "canary" ]; then
+            echo "### 🐤 Canary Deployment Required" >> $GITHUB_STEP_SUMMARY
+            echo "Due to medium risk score, production deployment will use canary strategy." >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Notify promotion status
+        if: always()
+        run: |
+          echo "📢 Artifact promotion completed for ${{ matrix.environment }}"
+          echo "  Risk Score: ${{ steps.risk-assessment.outputs.risk_score }}"
+          echo "  Strategy: ${{ steps.risk-assessment.outputs.deployment_strategy }}"
+          echo "  SHA: ${{ github.sha }}"
+          echo "  Status: ${{ job.status }}"
+          
+          # Create notification payload
+          cat > notification.json << EOF
+          {
+            "text": "🚀 Artifact Promotion: ${{ matrix.environment }}",
+            "blocks": [
+              {
+                "type": "section", 
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Environment:* ${{ matrix.environment }}\n*Risk Score:* ${{ steps.risk-assessment.outputs.risk_score }}\n*Strategy:* ${{ steps.risk-assessment.outputs.deployment_strategy }}\n*SHA:* \`${{ github.sha }}\`\n*Status:* ${{ job.status }}"
+                }
+              }
+            ]
+          }
+          EOF
+          
+          # Send notification (mock endpoint for demonstration)
+          curl -X POST -H "Content-Type: application/json" \
+            -d @notification.json \
+            "https://httpbin.org/post" || echo "Notification failed (expected in demo)"

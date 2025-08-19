@@ -1,0 +1,225 @@
+{
+  "directory_structure": {
+    "project_root_exists": true,
+    "claude_directory_exists": true,
+    "agents_directory_exists": true,
+    "settings_file_exists": true,
+    "permissions": "writable"
+  },
+  "agent_files": {
+    "helios-orchestrator": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 5678
+    },
+    "prometheus-frontend": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 8129
+    },
+    "hephaestus-frontend": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 9898
+    },
+    "athena-ux": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 10492
+    },
+    "prometheus-backend": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 11620
+    },
+    "hephaestus-backend": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 12549
+    },
+    "athena-api": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 12675
+    }
+  },
+  "agent_discovery": {
+    "discovery_successful": true,
+    "agents_discovered": 7,
+    "expected_agents": 7,
+    "missing_agents": [],
+    "extra_agents": [],
+    "agent_details": {
+      "hephaestus-backend": {
+        "name": "hephaestus-backend",
+        "description": "Backend builder for implementing infrastructure optimizations. Use for implementing API performance ...",
+        "tools_count": 9,
+        "tools": [
+          "Read",
+          "Edit",
+          "MultiEdit",
+          "Write",
+          "Bash",
+          "Grep",
+          "Glob",
+          "LS",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "athena-api": {
+        "name": "athena-api",
+        "description": "API verifier for backend quality assurance. Use for validating backend optimizations, API performanc...",
+        "tools_count": 7,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "Bash",
+          "WebFetch",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "athena-ux": {
+        "name": "athena-ux",
+        "description": "UX verifier for quality assurance and verification. Use for validating frontend optimizations, user ...",
+        "tools_count": 7,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "Bash",
+          "WebFetch",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "prometheus-frontend": {
+        "name": "prometheus-frontend",
+        "description": "Frontend UX strategist for analysis and optimization planning. Use for UI/UX performance analysis, c...",
+        "tools_count": 6,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "WebFetch",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "hephaestus-frontend": {
+        "name": "hephaestus-frontend",
+        "description": "Frontend builder for implementing UI optimizations. Use for implementing chat interface improvements...",
+        "tools_count": 9,
+        "tools": [
+          "Read",
+          "Edit",
+          "MultiEdit",
+          "Write",
+          "Bash",
+          "Grep",
+          "Glob",
+          "LS",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "helios-orchestrator": {
+        "name": "helios-orchestrator",
+        "description": "Master orchestrator for dual-swarm optimization. Use when system-wide coordination, performance anal...",
+        "tools_count": 8,
+        "tools": [
+          "Task",
+          "Bash",
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "WebFetch",
+          "TodoWrite"
+        ],
+        "status": "available"
+      },
+      "prometheus-backend": {
+        "name": "prometheus-backend",
+        "description": "Backend API strategist for analysis and infrastructure planning. Use for API performance analysis, d...",
+        "tools_count": 7,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "WebFetch",
+          "TodoWrite",
+          "Bash"
+        ],
+        "status": "available"
+      }
+    }
+  },
+  "api_integration": {
+    "interface_functional": true,
+    "system_status": {
+      "total_agents": 7,
+      "available_agents": 7,
+      "active_tasks": 0,
+      "completed_tasks": 0,
+      "agents_directory": "/Users/shayanbozorgmanesh/Documents/Parking/coinlink-mvp/.claude/agents",
+      "last_discovery": "2025-08-18T22:23:11.241956"
+    },
+    "available_agents_count": 7,
+    "agents_list": [
+      "hephaestus-backend",
+      "athena-api",
+      "athena-ux",
+      "prometheus-frontend",
+      "hephaestus-frontend",
+      "helios-orchestrator",
+      "prometheus-backend"
+    ],
+    "api_methods_working": true,
+    "individual_agent_status": {
+      "hephaestus-backend": true,
+      "athena-api": true,
+      "athena-ux": true,
+      "prometheus-frontend": true,
+      "hephaestus-frontend": true,
+      "helios-orchestrator": true,
+      "prometheus-backend": true
+    }
+  },
+  "monitoring_system": {
+    "monitoring_functional": true,
+    "system_health": {
+      "health_score": 0,
+      "performance_grade": "F",
+      "status": "unknown",
+      "timestamp": "2025-08-18T22:23:11.241996"
+    },
+    "metrics_available": false,
+    "alerts_system_working": true,
+    "health_score": 0
+  },
+  "overall_status": "excellent",
+  "success_rate": 1.0,
+  "passed_validations": 5,
+  "total_validations": 5
+}

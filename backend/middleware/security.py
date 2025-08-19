@@ -7,6 +7,10 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import fastapi_limiter
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+import redis.asyncio as redis
 from typing import Dict, Optional, List, Any
 import logging
 import time
@@ -16,6 +20,7 @@ import re
 from datetime import datetime, timedelta
 from collections import defaultdict
 import asyncio
+import uuid
 
 # Configure security logger
 security_logger = logging.getLogger("coinlink.security")
@@ -29,7 +34,10 @@ request_logger.setLevel(logging.INFO)
 class SecurityMiddleware:
     """Comprehensive security middleware for API protection"""
     
-    def __init__(self):
+    def __init__(self, redis_url: str = None):
+        self.redis_url = redis_url
+        self.redis_client = None
+        
         # Rate limiting configuration per endpoint
         self.rate_limits = {
             "/api/chat": "20/minute",
@@ -48,11 +56,19 @@ class SecurityMiddleware:
             "/api/debug/tick": "10/minute",
             "/health": "120/minute",
             "/": "120/minute",
+            # Health endpoints
+            "/readyz": "60/minute",
+            "/livez": "120/minute",
             # Auth endpoints with stricter limits
-            "/api/auth/register": "5/minute",
-            "/api/auth/login": "10/minute",
-            "/api/v2/auth/register": "5/minute",
+            "/api/v2/auth/signup": "5/minute",
             "/api/v2/auth/login": "10/minute",
+            "/api/v2/auth/refresh": "20/minute",
+            "/api/v2/auth/logout": "20/minute",
+            "/api/v2/auth/verify": "60/minute",
+            "/api/v2/auth/rate-limit": "30/minute",
+            # Metrics and monitoring
+            "/metrics": "60/minute",
+            "/api/monitoring/unified": "30/minute",
         }
         
         # Track request patterns for anomaly detection
@@ -66,8 +82,37 @@ class SecurityMiddleware:
             r"(?i)(passwd|shadow|etc/)",  # System file access
         ]
         
-        # Initialize rate limiter
+        # Initialize rate limiter (fallback to slowapi if Redis not available)
         self.limiter = Limiter(key_func=self.get_client_identifier)
+        
+    async def initialize_redis(self):
+        """Initialize Redis connection for rate limiting"""
+        if self.redis_url:
+            try:
+                self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
+                await self.redis_client.ping()
+                security_logger.info("Redis connection established for rate limiting")
+                
+                # Initialize FastAPI-Limiter with Redis
+                await FastAPILimiter.init(self.redis_client)
+                security_logger.info("FastAPI-Limiter initialized with Redis backend")
+                
+            except Exception as e:
+                security_logger.warning(f"Failed to connect to Redis for rate limiting: {e}")
+                security_logger.warning("Rate limiting will degrade gracefully without Redis")
+                self.redis_client = None
+    
+    async def close_redis(self):
+        """Close Redis connection"""
+        if self.redis_client:
+            await self.redis_client.close()
+            await FastAPILimiter.close()
+    
+    def get_rate_limiter(self, path: str):
+        """Get rate limiter for specific path"""
+        rate_limit = self.get_rate_limit(path)
+        return RateLimiter(times=int(rate_limit.split('/')[0]), 
+                          seconds=60 if 'minute' in rate_limit else 1)
         
     def get_client_identifier(self, request: Request) -> str:
         """Get unique client identifier for rate limiting"""
@@ -194,6 +239,30 @@ class SecurityMiddleware:
                 return limit
         # Default rate limit
         return "100/minute"
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Handle rate limit exceeded errors with standardized JSON response"""
+    trace_id = str(uuid.uuid4())
+    
+    # Log the rate limit event
+    security_logger.warning(f"Rate limit exceeded for {request.client.host if request.client else 'unknown'} on {request.url.path}")
+    
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={
+            "error": {
+                "code": "rate_limit_exceeded", 
+                "message": "Too many requests. Please try again later.",
+                "details": {
+                    "retry_after": "60 seconds",
+                    "endpoint": request.url.path
+                },
+                "trace_id": trace_id
+            }
+        },
+        headers={"Retry-After": "60"}
+    )
 
 
 class RequestLoggingMiddleware:

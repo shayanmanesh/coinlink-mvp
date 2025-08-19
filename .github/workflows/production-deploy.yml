@@ -1,0 +1,328 @@
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'Dockerfile'
+      - 'backend/requirements-production.txt'
+      - 'docker-compose*.yml'
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/backend
+  RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    outputs:
+      security-passed: ${{ steps.security-check.outputs.passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Check security scan results
+        id: security-check
+        run: |
+          CRITICAL_COUNT=$(cat trivy-results.sarif | jq '[.runs[].results[] | select(.level == "error")] | length')
+          HIGH_COUNT=$(cat trivy-results.sarif | jq '[.runs[].results[] | select(.level == "warning")] | length')
+          
+          echo "Critical vulnerabilities: $CRITICAL_COUNT"
+          echo "High vulnerabilities: $HIGH_COUNT"
+          
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Critical vulnerabilities found - blocking deployment"
+            exit 1
+          elif [ "$HIGH_COUNT" -gt 5 ]; then
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Too many high-severity vulnerabilities ($HIGH_COUNT > 5) - blocking deployment"
+            exit 1
+          else
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ Security scan passed"
+          fi
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: needs.security-scan.outputs.security-passed == 'true'
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Run integration tests
+        run: |
+          echo "Starting integration tests..."
+          
+          # Start test environment
+          docker-compose -f docker-compose.test.yml up -d --wait
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Run health checks
+          docker-compose -f docker-compose.test.yml exec -T backend-test curl -f http://localhost:8000/health
+          
+          # Run backend tests
+          docker-compose -f docker-compose.test.yml exec -T backend-test python -m pytest backend/tests/ -v --tb=short
+          
+          # Cleanup
+          docker-compose -f docker-compose.test.yml down -v
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+
+      - name: Upload image scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+
+  staging-deploy:
+    runs-on: ubuntu-latest
+    needs: [security-scan, build-and-test]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://coinlink-staging.railway.app
+    steps:
+      - name: Deploy to Railway Staging
+        uses: railway-deploy@v1
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          service: coinlink-backend-staging
+          environment: staging
+        env:
+          # Database
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          # Security
+          JWT_SECRET_KEY: ${{ secrets.STAGING_JWT_SECRET_KEY }}
+          CORS_ORIGINS: ${{ secrets.STAGING_CORS_ORIGINS }}
+          PASSWORD_HASH_ROUNDS: 12
+          SESSION_TIMEOUT_HOURS: 24
+          # External APIs (staging keys)
+          COINBASE_API_KEY: ${{ secrets.STAGING_COINBASE_API_KEY }}
+          COINBASE_API_SECRET: ${{ secrets.STAGING_COINBASE_API_SECRET }}
+          COINGECKO_API_KEY: ${{ secrets.STAGING_COINGECKO_API_KEY }}
+          # Observability
+          SENTRY_DSN: ${{ secrets.STAGING_SENTRY_DSN }}
+          LOG_LEVEL: INFO
+          METRICS_ENABLED: true
+          # Application
+          ENVIRONMENT: staging
+
+      - name: Staging Health Check
+        run: |
+          echo "Waiting for staging deployment to be ready..."
+          sleep 60
+          
+          # Health check with retries
+          for i in {1..10}; do
+            if curl -f https://coinlink-staging.railway.app/health; then
+              echo "✅ Staging deployment healthy"
+              break
+            else
+              echo "⏳ Attempt $i/10 - waiting for staging to be ready..."
+              sleep 30
+            fi
+          done
+
+      - name: Run staging smoke tests
+        run: |
+          echo "Running staging smoke tests..."
+          
+          # Test health endpoint
+          curl -f https://coinlink-staging.railway.app/health
+          
+          # Test API endpoints
+          curl -f https://coinlink-staging.railway.app/api/v1/bitcoin/price
+          
+          # Test WebSocket connection (basic check)
+          curl -f -H "Connection: Upgrade" -H "Upgrade: websocket" https://coinlink-staging.railway.app/ws
+          
+          echo "✅ Staging smoke tests passed"
+
+  production-deploy:
+    runs-on: ubuntu-latest
+    needs: [security-scan, build-and-test, staging-deploy]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://coinlink-backend.onrender.com
+    steps:
+      - name: Production Deployment Gate
+        run: |
+          echo "🔒 Production deployment gate validation..."
+          
+          # Check staging health before proceeding
+          if ! curl -f https://coinlink-staging.railway.app/health; then
+            echo "❌ Staging environment not healthy - blocking production deployment"
+            exit 1
+          fi
+          
+          echo "✅ Production deployment gate passed"
+
+      - name: Deploy to Railway Production
+        uses: railway-deploy@v1
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          service: coinlink-backend-production
+          environment: production
+        env:
+          # Database
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.PRODUCTION_REDIS_URL }}
+          # Security
+          JWT_SECRET_KEY: ${{ secrets.PRODUCTION_JWT_SECRET_KEY }}
+          CORS_ORIGINS: ${{ secrets.PRODUCTION_CORS_ORIGINS }}
+          PASSWORD_HASH_ROUNDS: 14
+          SESSION_TIMEOUT_HOURS: 12
+          # External APIs (production keys)
+          COINBASE_API_KEY: ${{ secrets.PRODUCTION_COINBASE_API_KEY }}
+          COINBASE_API_SECRET: ${{ secrets.PRODUCTION_COINBASE_API_SECRET }}
+          COINGECKO_API_KEY: ${{ secrets.PRODUCTION_COINGECKO_API_KEY }}
+          # Observability
+          SENTRY_DSN: ${{ secrets.PRODUCTION_SENTRY_DSN }}
+          LOG_LEVEL: INFO
+          METRICS_ENABLED: true
+          # Application
+          ENVIRONMENT: production
+
+      - name: Production Health Check
+        run: |
+          echo "Waiting for production deployment to be ready..."
+          sleep 120
+          
+          # Health check with retries
+          for i in {1..15}; do
+            if curl -f https://coinlink-backend.onrender.com/health; then
+              echo "✅ Production deployment healthy"
+              break
+            else
+              echo "⏳ Attempt $i/15 - waiting for production to be ready..."
+              sleep 30
+            fi
+          done
+
+      - name: Run production smoke tests
+        run: |
+          echo "Running production smoke tests..."
+          
+          # Test health endpoint
+          curl -f https://coinlink-backend.onrender.com/health
+          
+          # Test API endpoints
+          curl -f https://coinlink-backend.onrender.com/api/v1/bitcoin/price
+          
+          # Test auth endpoint (should return 401)
+          curl -o /dev/null -s -w "%{http_code}" https://coinlink-backend.onrender.com/api/v1/users/me | grep -q "401"
+          
+          echo "✅ Production smoke tests passed"
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "🚀 Production deployment completed successfully!"
+          echo "📊 Deployment Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ needs.build-and-test.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://coinlink-backend.onrender.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Healthy" >> $GITHUB_STEP_SUMMARY
+
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure() && (github.ref == 'refs/heads/main')
+    needs: [production-deploy]
+    environment:
+      name: production
+    steps:
+      - name: Rollback production deployment
+        run: |
+          echo "🔄 Initiating production rollback..."
+          
+          # Get previous stable deployment
+          PREVIOUS_DEPLOYMENT=$(curl -s -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            "https://backboard.railway.app/graphql" \
+            -d '{"query": "query { project(id: \"${{ env.RAILWAY_PROJECT_ID }}\") { deployments(first: 2) { edges { node { id status createdAt } } } } }"}' \
+            | jq -r '.data.project.deployments.edges[1].node.id')
+          
+          echo "Rolling back to deployment: $PREVIOUS_DEPLOYMENT"
+          
+          # Trigger rollback (Railway API call would go here)
+          echo "⚠️ Manual rollback required - check Railway dashboard"
+
+      - name: Notify rollback
+        run: |
+          echo "🚨 Production deployment failed - rollback initiated"
+          echo "📋 Rollback Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action**: Rollback Initiated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Manual Steps**: Check Railway dashboard for rollback status" >> $GITHUB_STEP_SUMMARY

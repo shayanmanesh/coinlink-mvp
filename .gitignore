@@ -14,7 +14,14 @@ backend/*/*/__pycache__/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+frontend/.env.production
 *.env
+
+# Deployment backups and archives
+deployment-backup-*.tar.gz
+coinlink-worktrees/
+_archive/
 
 # IDE
 .vscode/

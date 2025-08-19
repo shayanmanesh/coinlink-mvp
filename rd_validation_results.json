@@ -1,0 +1,254 @@
+{
+  "rd_directory_structure": {
+    "project_root_exists": true,
+    "rd_agents_directory_exists": true,
+    "rd_backend_directory_exists": true,
+    "rd_agents_permissions": "writable",
+    "rd_backend_permissions": "writable"
+  },
+  "rd_agent_files": {
+    "apollo-rd-orchestrator": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 9073,
+      "specialization_defined": true
+    },
+    "argus-competitor": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 9717,
+      "specialization_defined": true
+    },
+    "minerva-research": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 12162,
+      "specialization_defined": true
+    },
+    "vulcan-strategy": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 12769,
+      "specialization_defined": true
+    },
+    "daedalus-prototype": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 12411,
+      "specialization_defined": true
+    },
+    "mercury-integration": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 13315,
+      "specialization_defined": true
+    },
+    "echo-feedback": {
+      "exists": true,
+      "readable": true,
+      "has_frontmatter": true,
+      "valid_yaml": true,
+      "file_size": 14021,
+      "specialization_defined": true
+    }
+  },
+  "rd_agent_discovery": {
+    "discovery_successful": true,
+    "agents_discovered": 7,
+    "expected_agents": 7,
+    "missing_agents": [],
+    "extra_agents": [],
+    "agent_details": {
+      "daedalus-prototype": {
+        "name": "daedalus-prototype",
+        "description": "Prototyping specialist for rapid proof-of-concept development and feature validation. Use for buildi...",
+        "tools_count": 6,
+        "tools": [
+          "Read",
+          "Edit",
+          "MultiEdit",
+          "Write",
+          "Bash",
+          "TodoWrite"
+        ],
+        "specialization": "prototyping",
+        "status": "available"
+      },
+      "echo-feedback": {
+        "name": "echo-feedback",
+        "description": "User feedback analyst for market demand insights and user experience optimization. Use for analyzing...",
+        "tools_count": 4,
+        "tools": [
+          "Read",
+          "Grep",
+          "WebFetch",
+          "TodoWrite"
+        ],
+        "specialization": "user_feedback_analysis",
+        "status": "available"
+      },
+      "vulcan-strategy": {
+        "name": "vulcan-strategy",
+        "description": "Feature strategist for innovation planning and product roadmapping. Use for transforming research in...",
+        "tools_count": 5,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "TodoWrite"
+        ],
+        "specialization": "feature_strategy",
+        "status": "available"
+      },
+      "apollo-rd-orchestrator": {
+        "name": "apollo-rd-orchestrator",
+        "description": "Master R&D orchestrator for autonomous innovation and competitive intelligence. Use for strategic R&...",
+        "tools_count": 9,
+        "tools": [
+          "Task",
+          "Bash",
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "WebFetch",
+          "WebSearch",
+          "TodoWrite"
+        ],
+        "specialization": "orchestration",
+        "status": "available"
+      },
+      "minerva-research": {
+        "name": "minerva-research",
+        "description": "Research analysis expert for academic and technology trend analysis. Use for monitoring cutting-edge...",
+        "tools_count": 6,
+        "tools": [
+          "WebFetch",
+          "WebSearch",
+          "Read",
+          "Grep",
+          "Glob",
+          "TodoWrite"
+        ],
+        "specialization": "research_analysis",
+        "status": "available"
+      },
+      "argus-competitor": {
+        "name": "argus-competitor",
+        "description": "Competitor intelligence specialist for comprehensive market monitoring and competitive analysis. Use...",
+        "tools_count": 5,
+        "tools": [
+          "WebFetch",
+          "WebSearch",
+          "Read",
+          "Grep",
+          "TodoWrite"
+        ],
+        "specialization": "competitive_intelligence",
+        "status": "available"
+      },
+      "mercury-integration": {
+        "name": "mercury-integration",
+        "description": "Integration planner for production implementation strategy and technical feasibility assessment. Use...",
+        "tools_count": 5,
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "LS",
+          "TodoWrite"
+        ],
+        "specialization": "integration_planning",
+        "status": "available"
+      }
+    },
+    "specializations": {
+      "prototyping": 1,
+      "user_feedback_analysis": 1,
+      "feature_strategy": 1,
+      "orchestration": 1,
+      "research_analysis": 1,
+      "competitive_intelligence": 1,
+      "integration_planning": 1
+    }
+  },
+  "rd_backend_modules": {
+    "rd.__init__": {
+      "file_exists": true,
+      "importable": true,
+      "functional": true,
+      "file_size": 540
+    },
+    "rd.rd_interface": {
+      "file_exists": true,
+      "importable": true,
+      "functional": true,
+      "file_size": 16280
+    },
+    "rd.innovation_pipeline": {
+      "file_exists": true,
+      "importable": true,
+      "functional": true,
+      "file_size": 18921
+    },
+    "rd.notification_system": {
+      "file_exists": true,
+      "importable": true,
+      "functional": true,
+      "file_size": 22250
+    },
+    "rd.rd_metrics": {
+      "file_exists": true,
+      "importable": true,
+      "functional": true,
+      "file_size": 21339
+    }
+  },
+  "innovation_pipeline": {
+    "pipeline_functional": true,
+    "innovation_creation": true,
+    "evaluation_working": true,
+    "stage_advancement": true,
+    "status_reporting": true,
+    "test_innovation_id": "f54e83c2-03da-4b09-9071-660a874f53a2",
+    "pipeline_health": "good"
+  },
+  "email_notifications": {
+    "notification_system_functional": true,
+    "sample_report_generation": true,
+    "weekly_report_sending": false,
+    "competitive_alert_sending": false,
+    "approval_request_sending": false,
+    "email_templates_available": true
+  },
+  "api_integration": {
+    "api_routes_importable": false,
+    "error": "No module named 'fastapi'"
+  },
+  "settings_configuration": {
+    "settings_file_exists": true,
+    "settings_readable": true,
+    "rd_configuration_present": true,
+    "agent_configuration_present": true,
+    "email_configuration_present": true,
+    "innovation_targets_configured": true,
+    "agent_specializations_configured": true
+  },
+  "overall_status": "good",
+  "success_rate": 0.875,
+  "passed_validations": 7,
+  "total_validations": 8
+}

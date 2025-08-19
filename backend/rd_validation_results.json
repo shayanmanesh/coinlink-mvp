@@ -1,0 +1,126 @@
+{
+  "rd_directory_structure": {
+    "project_root_exists": true,
+    "rd_agents_directory_exists": false,
+    "rd_backend_directory_exists": false,
+    "rd_agents_permissions": "unknown",
+    "rd_backend_permissions": "unknown"
+  },
+  "rd_agent_files": {
+    "apollo-rd-orchestrator": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "argus-competitor": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "minerva-research": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "vulcan-strategy": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "daedalus-prototype": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "mercury-integration": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    },
+    "echo-feedback": {
+      "exists": false,
+      "readable": false,
+      "has_frontmatter": false,
+      "valid_yaml": false,
+      "file_size": 0,
+      "specialization_defined": false
+    }
+  },
+  "rd_agent_discovery": {
+    "discovery_successful": false,
+    "error": "No module named 'rd.rd_orchestrator'"
+  },
+  "rd_backend_modules": {
+    "rd.__init__": {
+      "file_exists": false,
+      "importable": false,
+      "functional": false,
+      "file_size": 0
+    },
+    "rd.rd_interface": {
+      "file_exists": false,
+      "importable": false,
+      "functional": false,
+      "file_size": 0
+    },
+    "rd.innovation_pipeline": {
+      "file_exists": false,
+      "importable": false,
+      "functional": false,
+      "file_size": 0
+    },
+    "rd.notification_system": {
+      "file_exists": false,
+      "importable": false,
+      "functional": false,
+      "file_size": 0
+    },
+    "rd.rd_metrics": {
+      "file_exists": false,
+      "importable": false,
+      "functional": false,
+      "file_size": 0
+    }
+  },
+  "innovation_pipeline": {
+    "pipeline_functional": false,
+    "error": "No module named 'rd.rd_orchestrator'"
+  },
+  "email_notifications": {
+    "notification_system_functional": false,
+    "error": "No module named 'rd.rd_orchestrator'"
+  },
+  "api_integration": {
+    "api_routes_importable": false,
+    "error": "No module named 'fastapi'"
+  },
+  "settings_configuration": {
+    "settings_file_exists": false,
+    "settings_readable": false,
+    "rd_configuration_present": false,
+    "agent_configuration_present": false,
+    "email_configuration_present": false
+  },
+  "overall_status": "failed",
+  "success_rate": 0.0,
+  "passed_validations": 0,
+  "total_validations": 8
+}
