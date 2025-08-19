@@ -5,12 +5,12 @@
   "framework": "create-react-app",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://coinlink-backend.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
     },
     {
-      "source": "/ws",
-      "destination": "https://coinlink-backend.up.railway.app/ws"
+      "source": "/health",
+      "destination": "/api/index.py"
     }
   ],
   "headers": [
@@ -41,11 +41,5 @@
       ]
     }
   ],
-  "env": {
-    "REACT_APP_API_URL": "@coinlink-api-url",
-    "REACT_APP_WS_URL": "@coinlink-ws-url",
-    "REACT_APP_SUPABASE_URL": "@supabase-url",
-    "REACT_APP_SUPABASE_ANON_KEY": "@supabase-anon-key"
-  },
   "public": true
 }

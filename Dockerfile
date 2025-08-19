@@ -16,4 +16,4 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "backend.api.main_production:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD python -m uvicorn backend.api.test_basic:app --host 0.0.0.0 --port ${PORT:-8000}
