@@ -1,283 +1,209 @@
-# CoinLink MVP - Bitcoin Analysis Chat Application
+# CoinLink MVP 🚀
 
-A modern, responsive web application focused exclusively on Bitcoin (BTC) analysis with real-time trading charts, sentiment analysis, and proactive alerts.
+Bitcoin analysis platform with real-time chat interface and trading charts.
 
-## 🚀 Features
+## 🌐 Live Production System
 
-### Core Functionality
-- **Bitcoin-Focused Chat Interface**: AI-powered analysis using TinyLlama-1.1B via Ollama
-- **Real-Time Trading Charts**: TradingView widget locked to BTCUSD
-- **Live Price Updates**: Coinbase Advanced API integration for BTC-USD data
-- **Sentiment Analysis**: ProsusAI/finbert for Bitcoin news sentiment
-- **Proactive Alerts**: Price changes, volume spikes, and sentiment shifts
-- **Redis Caching**: 5-minute TTL for optimized performance
+- **Frontend**: https://frontend-kbkzfe7jy-shayans-projects-ede8d66b.vercel.app
+- **Backend API**: https://coinlink-backend.onrender.com
+- **Health Check**: https://coinlink-backend.onrender.com/health
 
-### User Interface
-- **60% Chat Panel**: Bitcoin analysis interface with quick questions
-- **40% TradingView Widget**: Interactive BTCUSD charts
-- **Floating Alert Banner**: Real-time Bitcoin notifications
-- **Sentiment Indicators**: Visual sentiment representation (🟢 bullish, 🔴 bearish, ⚪ neutral)
-- **Mobile Responsive**: Stacked layout for mobile devices
+## ⚡ Features
 
-### Sample Interactions
+- **Real-time Bitcoin Chat**: AI-powered analysis and responses
+- **Live Trading Charts**: TradingView widget integration
+- **WebSocket Communication**: Real-time updates and chat
+- **Bitcoin Price Data**: Current price and market information
+- **Alert System**: Proactive notifications
+- **JWT Authentication**: Secure user sessions
+
+## 🏗️ Architecture
+
 ```
-User: "What's happening with Bitcoin?"
-Bot: "Bitcoin is trading at $45,230 (+3.2% 24h). RSI at 58 indicates neutral momentum. Recent news sentiment is bullish with 3 positive articles in the last hour."
-
-User: "Should I buy?"
-Bot: "Bitcoin's current setup shows moderate strength. Price above 50-day SMA ($44,100), neutral RSI, and positive sentiment. Consider your risk tolerance and investment timeline."
-
-User: "Tell me about ETH"
-Bot: "I focus exclusively on Bitcoin analysis. For BTC: current price $45,230 with stable volume. Would you like detailed Bitcoin metrics?"
+Frontend (React/Vercel) ←→ Backend (FastAPI/Render) ←→ Redis (Caching)
 ```
 
-## 🛠️ Tech Stack
+### Tech Stack
+- **Backend**: FastAPI, Python 3.11+, Redis
+- **Frontend**: React, TailwindCSS, WebSocket
+- **Deployment**: Render.com (backend), Vercel (frontend)
+- **Database**: Redis for caching and sessions
 
-### Backend
-- **FastAPI**: Web framework with WebSocket support
-- **Langchain**: AI agent framework with TinyLlama integration
-- **Ollama**: Local LLM serving for TinyLlama-1.1B
-- **Redis**: Caching and session management
-- **Transformers**: ProsusAI/finbert sentiment analysis
+## 📋 API Endpoints
 
-### Frontend
-- **React**: Single-page application
-- **Tailwind CSS**: Modern, responsive styling
-- **WebSocket**: Real-time communication
-- **TradingView Widget**: Interactive charts
+### Core Endpoints
+```bash
+GET  /health                 # System health check
+GET  /                       # API information
+GET  /api/bitcoin/price      # Current BTC price
+GET  /api/crypto/ticker      # Multi-crypto data
+POST /api/chat               # Chat interface
+GET  /api/alerts             # Active alerts
+GET  /api/alerts/history     # Alert history
+WS   /ws                     # WebSocket connection
+```
 
-### APIs & Services
-- **Coinbase Advanced API**: Real-time BTC-USD data
-- **NewsAPI**: Bitcoin news aggregation
-- **Hugging Face**: Sentiment analysis models
+### Example API Usage
+```bash
+# Check system health
+curl https://coinlink-backend.onrender.com/health
 
-## 📋 Prerequisites
+# Get Bitcoin price
+curl https://coinlink-backend.onrender.com/api/bitcoin/price
 
-- Docker and Docker Compose
-- API keys for external services (see Environment Variables)
+# Chat with the system
+curl -X POST https://coinlink-backend.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is Bitcoin price?"}'
+```
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+### Local Development
 ```bash
-git clone <repository-url>
+# Clone repository
+git clone https://github.com/shayanmanesh/coinlink-mvp.git
 cd coinlink-mvp
-```
 
-### 2. Set Environment Variables
-Copy the example environment file and add your API keys:
-```bash
+# Set up environment
 cp .env.example .env
+# Edit .env with your API keys
+
+# Run backend
+cd backend
+pip install -r requirements-production.txt
+uvicorn api.main_production:app --reload
+
+# Access locally
+# Backend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
 
-Edit `.env` with your API keys:
-```env
-OLLAMA_BASE_URL=http://localhost:11434
-COINBASE_API_KEY=your_coinbase_api_key
-COINBASE_API_SECRET=your_coinbase_api_secret
-REDIS_URL=redis://localhost:6379
-HF_TOKEN=your_huggingface_token
-CoinGecko_API_key=your_coingecko_api_key
-Reddit_API_SECRET=your_reddit_api_secret
-Reddit_client_id=your_reddit_client_id
-newsapi_api_key=your_newsapi_api_key
-messari_api_key=your_messari_api_key
-```
-
-### 3. Start the Application
+### Testing Production
 ```bash
-docker-compose up -d
+# Test current setup
+./test-current-setup.sh
+
+# Update frontend (after backend changes)
+./update-frontend-render.sh https://coinlink-backend.onrender.com
 ```
-
-This will start:
-- **Redis** (port 6379): Caching and session management
-- **Ollama** (port 11434): TinyLlama model serving
-- **Backend** (port 8000): FastAPI application
-- **Frontend** (port 3000): React application
-
-### 4. Access the Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **Test Page**: http://localhost:8000/test
 
 ## 📁 Project Structure
 
 ```
 coinlink-mvp/
 ├── backend/
-│   ├── agents/
-│   │   └── analyst.py          # Langchain agent with TinyLlama
-│   ├── tools/
-│   │   └── coinbase_tools.py   # Coinbase API integration
-│   ├── sentiment/
-│   │   └── analyzer.py         # finbert sentiment analysis
-│   ├── monitors/
-│   │   └── btc_monitor.py      # Async BTC monitoring
-│   ├── alerts/
-│   │   └── alert_engine.py     # Alert generation logic
 │   ├── api/
-│   │   ├── main.py             # FastAPI app
-│   │   └── websocket.py        # WebSocket handlers
-│   └── config/
-│       └── settings.py         # Environment configuration
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx             # Main component
-│   │   ├── components/
-│   │   │   ├── Chat.jsx        # Bitcoin chat interface
-│   │   │   ├── Chart.jsx       # TradingView widget
-│   │   │   └── AlertBanner.jsx # Alert display
-│   │   └── services/
-│   │       └── api.js          # WebSocket connection
-│   └── package.json
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
+│   │   └── main_production.py    # Core FastAPI application
+│   ├── auth/
+│   │   └── simple_auth.py        # JWT authentication
+│   ├── config/
+│   │   └── settings.py           # Configuration management
+│   └── requirements-production.txt
+├── frontend/                     # React app (deployed to Vercel)
+├── .env.example                  # Environment variables template
+├── CLAUDE.md                     # Agent orchestration guide
+├── render.yaml                   # Deployment configuration
+├── test-current-setup.sh         # Health check script
+└── update-frontend-render.sh     # Frontend update script
 ```
 
-## 🔧 API Endpoints
+## 🔧 Configuration
 
-### Chat & Analysis
-- `POST /api/chat` - Send Bitcoin analysis request
-- `GET /api/chat/history` - Get chat history
+### Environment Variables
+```env
+# Required for local development
+JWT_SECRET_KEY=your-secret-key
+REDIS_URL=redis://localhost:6379
+NODE_ENV=development
+```
 
-### Bitcoin Data
-- `GET /api/bitcoin/price` - Current BTC price
-- `GET /api/bitcoin/sentiment` - Sentiment analysis
-- `GET /api/bitcoin/market-summary` - Comprehensive market data
-- `GET /api/bitcoin/news` - Recent Bitcoin news
+### Production Environment
+- **Backend**: Auto-deployed via Render.com on git push
+- **Frontend**: Auto-deployed via Vercel on git push
+- **Redis**: Managed Redis instance on Render.com
 
-### Alerts & Monitoring
-- `GET /api/alerts` - Active alerts
-- `GET /api/alerts/history` - Alert history
-- `GET /api/connections` - WebSocket connection count
+## 🚀 Deployment
 
-### WebSocket
-- `WS /ws` - Real-time updates and chat
+### Automatic Deployment
+1. **Push to main branch** - Triggers auto-deployment
+2. **Render.com** - Builds and deploys backend automatically
+3. **Vercel** - Builds and deploys frontend automatically
 
-## 🎯 Key Features Explained
-
-### Bitcoin-Focused Analysis
-The AI agent is specifically trained to focus exclusively on Bitcoin (BTC) analysis. It will redirect any queries about other cryptocurrencies back to Bitcoin analysis.
-
-### Real-Time Monitoring
-- **Price Monitoring**: Tracks BTC price changes with 5% threshold alerts
-- **Volume Monitoring**: Detects volume spikes above 1M USD
-- **Sentiment Monitoring**: Analyzes news sentiment changes
-- **Background Processing**: Continuous monitoring every 30 seconds
-
-### Sentiment Analysis
-Uses ProsusAI/finbert model to analyze Bitcoin-related news articles, providing:
-- Overall sentiment (positive/negative/neutral)
-- Sentiment scores
-- Article filtering for Bitcoin relevance
-- Real-time sentiment updates
-
-### Alert System
-Proactive alerts for:
-- **Price Alerts**: Significant BTC price movements
-- **Volume Alerts**: Unusual trading volume
-- **Sentiment Alerts**: Sentiment changes
-- **Combined Alerts**: Price + sentiment correlation
-
-## 🔍 Development
-
-### Running Locally (without Docker)
-
-#### Backend
+### Manual Updates
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn api.main:app --reload
+# Update frontend to use new backend URL
+./update-frontend-render.sh [NEW-BACKEND-URL]
 ```
 
-#### Frontend
-```bash
-cd frontend
-npm install
-npm start
-```
+## 📊 Performance
 
-### Testing
-- **Backend**: http://localhost:8000/test (WebSocket test page)
-- **API Docs**: http://localhost:8000/docs (Swagger UI)
-- **Health Check**: http://localhost:8000/health
+- **Response Time**: < 500ms for API endpoints
+- **Uptime**: 99.9% availability target
+- **Scaling**: Auto-scaling enabled on Render.com
+- **Caching**: Redis with optimized TTL settings
+
+## 🔒 Security Features
+
+- **JWT Authentication**: Secure token-based authentication
+- **CORS Configuration**: Restricted to allowed origins
+- **Environment Variables**: Secure secret management
+- **Input Validation**: All API inputs validated
+- **Rate Limiting**: Protection against abuse
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Ollama Connection Error**
-   - Ensure Ollama is running: `docker-compose logs ollama`
-   - Check if TinyLlama model is downloaded
+1. **Backend Health Check Fails**
+   ```bash
+   curl https://coinlink-backend.onrender.com/health
+   # Should return: {"status":"healthy"}
+   ```
 
-2. **Redis Connection Error**
-   - Verify Redis is running: `docker-compose logs redis`
-   - Check Redis URL configuration
+2. **Frontend Connection Issues**
+   ```bash
+   curl -I https://frontend-kbkzfe7jy-shayans-projects-ede8d66b.vercel.app
+   # Should return: HTTP 401 (authentication working)
+   ```
 
-3. **API Key Errors**
-   - Verify all API keys are set in `.env` file
-   - Check API key permissions and quotas
-
-4. **WebSocket Connection Issues**
-   - Ensure backend is running on port 8000
+3. **WebSocket Connection Problems**
    - Check CORS configuration
+   - Verify WebSocket URL format: `wss://coinlink-backend.onrender.com/ws`
 
-### Logs
+### Debug Commands
 ```bash
-# View all logs
-docker-compose logs
+# Test all endpoints
+./test-current-setup.sh
 
-# View specific service logs
-docker-compose logs backend
-docker-compose logs frontend
-docker-compose logs ollama
+# Check recent deployments
+git log --oneline -5
+
+# View production logs
+# Login to Render.com dashboard → coinlink-backend → Logs
 ```
 
-## 📈 Performance
+## 📈 Monitoring
 
-- **Caching**: Redis with 5-minute TTL for Bitcoin data
-- **Background Processing**: Async monitoring to prevent blocking
-- **WebSocket**: Real-time updates without polling
-- **Mobile Optimization**: Responsive design for all devices
-
-## 🔒 Security
-
-- **Environment Variables**: Secure API key management
-- **CORS**: Configured for development (customize for production)
-- **Input Validation**: All user inputs validated
-- **Error Handling**: Comprehensive error handling and logging
-
-## 🚀 Production Deployment
-
-For production deployment:
-
-1. **Environment Variables**: Use secure environment variable management
-2. **SSL/TLS**: Configure HTTPS for WebSocket connections
-3. **CORS**: Restrict origins to your domain
-4. **Monitoring**: Add application monitoring and logging
-5. **Scaling**: Consider horizontal scaling for high traffic
-
-## 📄 License
-
-This project is licensed under the MIT License.
+- **Health Endpoint**: Automated monitoring via `/health`
+- **Error Tracking**: Built-in FastAPI error handling
+- **Performance Metrics**: Response time tracking
+- **Deployment Status**: Git-triggered deployment logs
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make changes and test locally
+4. Commit: `git commit -m "Add feature"`
+5. Push: `git push origin feature-name`
+6. Create Pull Request
 
-## 📞 Support
+## 📄 License
 
-For support and questions:
-- Create an issue in the repository
-- Check the troubleshooting section
-- Review the API documentation
+MIT License - see LICENSE file for details.
 
 ---
 
-**CoinLink MVP** - Your Bitcoin Analysis Companion 🚀
+**CoinLink MVP** - Production-ready Bitcoin analysis platform
+🚀 Live at: https://frontend-kbkzfe7jy-shayans-projects-ede8d66b.vercel.app
