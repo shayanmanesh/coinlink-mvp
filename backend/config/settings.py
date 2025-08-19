@@ -1,7 +1,8 @@
 import os
 from typing import List, Optional
 from dotenv import load_dotenv
-from pydantic import BaseSettings, validator, Field
+from pydantic_settings import BaseSettings
+from pydantic import field_validator, Field
 import logging
 
 load_dotenv()
@@ -55,7 +56,8 @@ class Settings(BaseSettings):
     MESSARI_API_KEY: Optional[str] = None
     HF_TOKEN: Optional[str] = None
     
-    @validator('ALLOWED_ORIGINS')
+    @field_validator('ALLOWED_ORIGINS')
+    @classmethod
     def parse_allowed_origins(cls, v):
         """Parse CSV origins into list"""
         if not v:
@@ -65,7 +67,8 @@ class Settings(BaseSettings):
             raise ValueError("ALLOWED_ORIGINS must contain at least one valid origin")
         return origins
     
-    @validator('JWT_SECRET_KEY')
+    @field_validator('JWT_SECRET_KEY')
+    @classmethod
     def validate_jwt_secret(cls, v):
         """Ensure JWT secret is strong enough"""
         if not v:
@@ -74,7 +77,8 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
         return v
     
-    @validator('DATABASE_URL')
+    @field_validator('DATABASE_URL')
+    @classmethod
     def validate_database_url(cls, v):
         """Validate database URL format"""
         if not v:
@@ -83,7 +87,8 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must be a PostgreSQL URL")
         return v
     
-    @validator('REDIS_URL')
+    @field_validator('REDIS_URL')
+    @classmethod
     def validate_redis_url(cls, v):
         """Validate Redis URL format"""
         if not v:

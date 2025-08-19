@@ -22,6 +22,7 @@ frontend/.env.production
 deployment-backup-*.tar.gz
 coinlink-worktrees/
 _archive/
+.worktrees/
 
 # IDE
 .vscode/

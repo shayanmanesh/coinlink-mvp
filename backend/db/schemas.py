@@ -3,7 +3,7 @@ Pydantic schemas for database models
 Request/response models with validation
 """
 
-from pydantic import BaseModel, Field, validator, EmailStr
+from pydantic import BaseModel, Field, field_validator, EmailStr
 from typing import Optional, List
 from datetime import datetime
 import uuid
@@ -20,7 +20,8 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=12, max_length=512, description="User password")
     confirm_password: str = Field(..., description="Password confirmation")
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password_strength(cls, v):
         """Validate password meets security requirements"""
         if len(v) < 12:
@@ -50,14 +51,16 @@ class UserCreate(UserBase):
         
         return v
     
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
         """Ensure password and confirm_password match"""
-        if 'password' in values and v != values['password']:
+        if 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
         return v
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email_format(cls, v):
         """Additional email validation beyond EmailStr"""
         if len(v) > 254:
@@ -82,7 +85,8 @@ class UserLogin(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=1, max_length=512, description="User password")
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def normalize_email(cls, v):
         """Normalize email for consistent login"""
         return v.lower().strip()
@@ -168,7 +172,7 @@ class ErrorResponse(BaseModel):
     error: dict = Field(..., description="Error information")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "error": {
                     "code": "validation_error",
@@ -216,15 +220,17 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(..., min_length=12, max_length=512, description="New password")
     confirm_password: str = Field(..., description="Password confirmation")
     
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_password_strength(cls, v):
         """Reuse password validation from UserCreate"""
         return UserCreate.validate_password_strength(v)
     
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
         """Ensure passwords match"""
-        if 'new_password' in values and v != values['new_password']:
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v
 
@@ -234,14 +240,16 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(..., min_length=12, max_length=512, description="New password")
     confirm_password: str = Field(..., description="Password confirmation")
     
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_password_strength(cls, v):
         """Reuse password validation from UserCreate"""
         return UserCreate.validate_password_strength(v)
     
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
         """Ensure passwords match"""
-        if 'new_password' in values and v != values['new_password']:
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v

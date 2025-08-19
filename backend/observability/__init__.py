@@ -7,7 +7,7 @@ import logging
 import asyncio
 from typing import Optional
 
-from .logging import configure_logging, set_trace_id, get_trace_id, app_logger
+from .log_config import configure_logging, set_trace_id, get_trace_id, app_logger
 from .sentry import configure_sentry, capture_exception, capture_message
 from .metrics import coinlink_metrics, create_instrumentator, start_system_metrics_collection, get_metrics_response
 

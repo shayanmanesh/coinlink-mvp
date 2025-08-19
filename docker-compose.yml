@@ -67,9 +67,12 @@ services:
       - DATABASE_URL=postgresql+asyncpg://coinlink:${POSTGRES_PASSWORD:-coinlink_dev_password}@postgres:5432/coinlink
       # Redis
       - REDIS_URL=redis://redis:6379
+      # Core Environment
+      - PYTHON_ENV=development
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Security
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev_secret_key_minimum_32_characters_long_for_docker_testing}
+      - ALLOWED_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       - PASSWORD_HASH_ROUNDS=${PASSWORD_HASH_ROUNDS:-12}
       - SESSION_TIMEOUT_HOURS=${SESSION_TIMEOUT_HOURS:-24}
       # External APIs
@@ -84,11 +87,8 @@ services:
       - MESSARI_API_KEY=${MESSARI_API_KEY}
       # Observability
       - SENTRY_DSN=${SENTRY_DSN}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - METRICS_ENABLED=${METRICS_ENABLED:-true}
       - PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
-      # Application
-      - ENVIRONMENT=development
       - API_V1_STR=/api/v1
       - MAX_CONNECTIONS_COUNT=${MAX_CONNECTIONS_COUNT:-10}
       - MIN_CONNECTIONS_COUNT=${MIN_CONNECTIONS_COUNT:-10}

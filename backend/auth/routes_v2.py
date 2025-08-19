@@ -138,6 +138,7 @@ async def login(
              description="Use refresh token to obtain new access token")
 @limiter.limit("20/minute")  # Higher limit for token refresh
 async def refresh_token(
+    request: Request,
     refresh_request: RefreshTokenRequest,
     session: AsyncSession = Depends(get_async_session)
 ):
@@ -363,17 +364,4 @@ async def auth_health_check(
             "error": str(e)
         }
 
-# Rate limit exceeded handler
-@router.exception_handler(429)
-async def rate_limit_handler(request: Request, exc):
-    """Handle rate limit exceeded"""
-    return HTTPException(
-        status_code=429,
-        detail={
-            "error": {
-                "code": "rate_limit_exceeded",
-                "message": "Too many requests. Please try again later.",
-                "retry_after": getattr(exc, 'retry_after', 60)
-            }
-        }
-    )
+# Note: Rate limiting handled by SlowAPI middleware at app level
