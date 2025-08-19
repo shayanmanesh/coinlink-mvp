@@ -1,0 +1,137 @@
+{
+  "permissions": {
+    "allow": [
+      "Task(*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(npm:*)",
+      "Bash(test:*)",
+      "Bash(pytest:*)",
+      "Bash(curl:*)",
+      "Bash(redis-server:*)",
+      "Bash(docker:*)",
+      "Bash(uvicorn:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(ps:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Read(*)",
+      "Grep(*)",
+      "Glob(*)",
+      "LS(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "TodoWrite(*)"
+    ],
+    "ask": [
+      "Edit(*)",
+      "MultiEdit(*)",
+      "Write(*)",
+      "NotebookEdit(*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(sudo:*)"
+    ],
+    "deny": [
+      "Bash(format:*)",
+      "Bash(dd:*)",
+      "Bash(fdisk:*)",
+      "Bash(mount:*)",
+      "Bash(umount:*)"
+    ]
+  },
+  "agents": {
+    "max_concurrent_tasks": 10,
+    "enable_parallel_execution": true,
+    "agent_coordination": "automatic",
+    "task_timeout": 300000,
+    "enable_agent_learning": true,
+    "enable_performance_monitoring": true,
+    "rd_department": {
+      "enabled": true,
+      "agents_path": ".claude/agents/rd/",
+      "max_concurrent_rd_tasks": 5,
+      "innovation_cycle_duration": 604800,
+      "auto_email_reports": true,
+      "stakeholder_email": "shayan.bozorgmanesh@gmail.com"
+    }
+  },
+  "optimization": {
+    "frontend": {
+      "chat_response_time_target": 100,
+      "ui_interaction_lag_target": 50,
+      "message_render_time_target": 20,
+      "prompt_feed_refresh_target": 1000
+    },
+    "backend": {
+      "api_response_time_target": 100,
+      "redis_cache_hit_target": 95,
+      "websocket_throughput_target": 1000,
+      "report_generation_target": 500
+    },
+    "business": {
+      "user_retention_24h_target": 40,
+      "messages_per_session_target": 5,
+      "session_duration_target": 300,
+      "prompt_click_rate_target": 15
+    }
+  },
+  "monitoring": {
+    "kpi_collection_interval": 300,
+    "performance_baseline_enabled": true,
+    "real_time_alerts": true,
+    "optimization_cycle_duration": 300
+  },
+  "rd_department": {
+    "innovation_targets": {
+      "features_ideated_per_week": 10,
+      "research_papers_per_week": 20,
+      "competitive_insights_per_week": 5,
+      "prototype_success_rate": 0.8,
+      "approval_rate": 0.6,
+      "innovation_cycle_completion": 0.9
+    },
+    "pipeline_config": {
+      "auto_approval_threshold": 85,
+      "critical_review_threshold": 95,
+      "pipeline_timeout_days": 30,
+      "batch_handoff_size": 5
+    },
+    "email_notifications": {
+      "weekly_reports": true,
+      "thirty_minute_reports": true,
+      "competitive_alerts": true,
+      "approval_requests": true,
+      "smtp_enabled": false,
+      "report_interval_minutes": 30,
+      "include_delta_changes": true,
+      "priority_threshold": "medium",
+      "max_items_per_section": 5
+    },
+    "agent_specializations": {
+      "apollo-rd-orchestrator": "orchestration",
+      "argus-competitor": "competitive_intelligence",
+      "minerva-research": "research_analysis",
+      "vulcan-strategy": "feature_strategy",
+      "daedalus-prototype": "prototyping",
+      "mercury-integration": "integration_planning",
+      "echo-feedback": "user_feedback_analysis"
+    }
+  },
+  "project": {
+    "name": "CoinLink MVP",
+    "description": "Multi-modal, multi-agent system for financial trading optimization",
+    "version": "1.0.0",
+    "backend_path": "backend/",
+    "frontend_path": "frontend/",
+    "agents_path": "backend/agents/"
+  }
+}

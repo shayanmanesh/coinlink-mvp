@@ -12,6 +12,17 @@ import asyncio
 import logging
 from typing import Dict, Any, List, Set
 
+# Import agent routes
+try:
+    from .routes.agents import router as agents_router
+    from .routes.rd_routes import router as rd_router
+except ImportError:
+    # Fallback for development
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from api.routes.agents import router as agents_router
+    from api.routes.rd_routes import router as rd_router
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,9 +61,75 @@ manager = ConnectionManager()
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting CoinLink Production API...")
+    
+    # Initialize agent system
+    try:
+        from ..agents.claude_agent_interface import claude_agents
+        from ..agents.monitoring import agent_monitor
+        
+        logger.info(f"Agent system initialized with {len(claude_agents.agents)} agents")
+        
+        # Start agent monitoring
+        await agent_monitor.start_monitoring()
+        logger.info("Agent monitoring system started")
+        
+    except Exception as e:
+        logger.warning(f"Agent system initialization failed: {e}")
+    
+    # Initialize R&D system
+    try:
+        from ..rd.rd_interface import rd_agents
+        from ..rd.rd_metrics import rd_metrics_tracker
+        from ..rd.innovation_pipeline import innovation_pipeline
+        
+        logger.info(f"R&D system initialized with {len(rd_agents.agents)} R&D agents")
+        
+        # Initialize agent metrics
+        for agent_name, agent_info in rd_agents.agents.items():
+            rd_metrics_tracker.initialize_agent_metrics(agent_name, agent_info.specialization)
+        
+        # Start innovation cycle if none active
+        if not rd_agents.current_cycle_id:
+            cycle_id = rd_agents.start_innovation_cycle()
+            rd_metrics_tracker.start_innovation_cycle(cycle_id)
+            logger.info(f"Started initial R&D innovation cycle: {cycle_id}")
+        
+        logger.info("R&D department system initialized successfully")
+        
+    except Exception as e:
+        logger.warning(f"R&D system initialization failed: {e}")
+    
+    # Initialize R&D scheduler for 30-minute reporting
+    try:
+        from ..rd.scheduler import rd_scheduler
+        
+        await rd_scheduler.start_scheduler()
+        logger.info("R&D 30-minute reporting scheduler started successfully")
+        
+    except Exception as e:
+        logger.warning(f"R&D scheduler initialization failed: {e}")
+    
     yield
+    
     # Shutdown
     logger.info("Shutting down CoinLink Production API...")
+    
+    # Stop R&D scheduler
+    try:
+        from ..rd.scheduler import rd_scheduler
+        if rd_scheduler.is_running:
+            await rd_scheduler.stop_scheduler()
+            logger.info("R&D scheduler stopped successfully")
+    except Exception as e:
+        logger.warning(f"Error stopping R&D scheduler: {e}")
+    
+    # Stop agent monitoring
+    try:
+        from ..agents.monitoring import agent_monitor
+        await agent_monitor.stop_monitoring()
+        logger.info("Agent monitoring stopped")
+    except Exception as e:
+        logger.warning(f"Error stopping agent monitoring: {e}")
 
 # Create FastAPI app
 app = FastAPI(
@@ -76,6 +153,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include agent routes
+app.include_router(agents_router)
+app.include_router(rd_router)
 
 # Health check endpoint
 @app.get("/")
