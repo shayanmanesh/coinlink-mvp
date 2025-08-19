@@ -133,6 +133,35 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         manager.disconnect(websocket)
 
+# Alert endpoints
+@app.get("/api/alerts")
+async def get_alerts():
+    """Get active alerts"""
+    try:
+        # Simple mock alerts for MVP
+        return {
+            "alerts": [],
+            "count": 0,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching alerts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/alerts/history")
+async def get_alert_history(limit: int = 20):
+    """Get alert history"""
+    try:
+        return {
+            "history": [],
+            "count": 0,
+            "limit": limit,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error fetching alert history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Chat endpoint (REST fallback)
 @app.post("/api/chat")
 async def chat_endpoint(payload: Dict[str, Any]):

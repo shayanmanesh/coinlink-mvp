@@ -12,7 +12,16 @@ import time
 
 class SimpleAuth:
     def __init__(self, secret_key: str = None):
-        self.secret_key = secret_key or secrets.token_urlsafe(32)
+        # Use configured secret key for production stability
+        if secret_key:
+            self.secret_key = secret_key
+        else:
+            try:
+                from config.settings import settings
+                self.secret_key = settings.JWT_SECRET_KEY
+            except ImportError:
+                import os
+                self.secret_key = os.getenv("JWT_SECRET_KEY", "coinlink-mvp-production-secret-2025")
         self.users = {}  # {email: {password_hash, created_at}}
         self.sessions = {}  # {token: {email, created_at, expires_at}}
         self.rate_limits = defaultdict(lambda: {"prompts": 0, "reset_at": 0})

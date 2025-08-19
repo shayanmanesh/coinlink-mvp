@@ -51,5 +51,8 @@ class Settings:
     
     # Bitcoin-specific keywords for sentiment filtering
     BTC_KEYWORDS = ['bitcoin', 'btc', 'crypto', 'cryptocurrency']
+    
+    # Authentication
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "coinlink-mvp-production-secret-2025")
 
 settings = Settings()
