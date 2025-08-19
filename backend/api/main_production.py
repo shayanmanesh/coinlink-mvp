@@ -15,13 +15,18 @@ from typing import Dict, Any, List, Set
 # Import agent routes
 try:
     from .routes.agents import router as agents_router
+    from .routes.rd_status import router as rd_status_router
     from .routes.rd_routes import router as rd_router
 except ImportError:
     # Fallback for development
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from api.routes.agents import router as agents_router
-    from api.routes.rd_routes import router as rd_router
+    from api.routes.rd_status import router as rd_status_router
+    try:
+        from api.routes.rd_routes import router as rd_router
+    except ImportError:
+        rd_router = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -156,7 +161,12 @@ app.add_middleware(
 
 # Include agent routes
 app.include_router(agents_router)
-app.include_router(rd_router)
+app.include_router(rd_status_router)
+if rd_router is not None:
+    app.include_router(rd_router)
+    logger.info("R&D routes loaded successfully")
+else:
+    logger.warning("R&D routes not loaded - import issues")
 
 # Health check endpoint
 @app.get("/")
