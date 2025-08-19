@@ -8,12 +8,29 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-from ...rd.rd_interface import rd_agents
-from ...rd.innovation_pipeline import innovation_pipeline, PipelineStage, ApprovalStatus
-from ...rd.rd_metrics import rd_metrics_tracker
-from ...rd.notification_system import email_notifier
-from ...rd.scheduler import rd_scheduler
-from ...rd.rd_orchestrator import rd_orchestrator
+# Import R&D modules with error handling for different deployment contexts
+try:
+    from ...rd.rd_interface import rd_agents
+    from ...rd.innovation_pipeline import innovation_pipeline, PipelineStage, ApprovalStatus
+    from ...rd.rd_metrics import rd_metrics_tracker
+    from ...rd.notification_system import email_notifier
+    from ...rd.scheduler import rd_scheduler
+    from ...rd.rd_orchestrator import rd_orchestrator
+except ImportError:
+    # Fallback for production deployment
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'rd'))
+    try:
+        from rd.rd_interface import rd_agents
+        from rd.innovation_pipeline import innovation_pipeline, PipelineStage, ApprovalStatus
+        from rd.rd_metrics import rd_metrics_tracker
+        from rd.notification_system import email_notifier
+        from rd.scheduler import rd_scheduler
+        from rd.rd_orchestrator import rd_orchestrator
+    except ImportError:
+        # Final fallback - disable R&D routes if modules not available
+        rd_agents = None
 
 router = APIRouter(prefix="/api/rd", tags=["rd"])
 
@@ -51,11 +68,44 @@ class SchedulerConfigRequest(BaseModel):
     priority_threshold: Optional[str] = None
     enable_quiet_hours: Optional[bool] = None
 
+# R&D System Availability Check
+def check_rd_system():
+    if rd_agents is None:
+        raise HTTPException(status_code=503, detail="R&D system not available - modules failed to load")
+
+# R&D System Status Endpoints
+
+@router.get("/status")
+async def rd_system_status():
+    """Check R&D system availability and status"""
+    if rd_agents is None:
+        return {
+            "status": "unavailable",
+            "message": "R&D modules failed to load",
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    try:
+        check_rd_system()
+        return {
+            "status": "available", 
+            "message": "R&D system is operational",
+            "scheduler_loaded": rd_scheduler is not None,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 # R&D Agent Management Endpoints
 
 @router.get("/agents")
 async def list_rd_agents():
     """List all R&D department agents"""
+    check_rd_system()
     try:
         agents = rd_agents.get_rd_agents()
         return {
