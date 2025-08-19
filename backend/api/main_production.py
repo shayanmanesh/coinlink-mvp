@@ -218,7 +218,12 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "connections": len(manager.active_connections)
+        "connections": len(manager.active_connections),
+        "routes_loaded": {
+            "agents": agents_router is not None,
+            "rd_status": rd_status_router is not None, 
+            "rd_full": rd_router is not None
+        }
     }
 
 # WebSocket endpoint
