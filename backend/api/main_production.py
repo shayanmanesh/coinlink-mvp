@@ -12,25 +12,51 @@ import asyncio
 import logging
 from typing import Dict, Any, List, Set
 
-# Import agent routes
+# Import agent routes with detailed error handling
+agents_router = None
+rd_status_router = None
+rd_router = None
+
+logger = logging.getLogger(__name__)
+
 try:
     from .routes.agents import router as agents_router
-    from .routes.rd_status import router as rd_status_router
-    from .routes.rd_routes import router as rd_router
-except ImportError:
+    logger.info("Successfully imported agents_router")
+except ImportError as e:
+    logger.error(f"Failed to import agents_router: {e}")
     # Fallback for development
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    from api.routes.agents import router as agents_router
-    from api.routes.rd_status import router as rd_status_router
+    try:
+        from api.routes.agents import router as agents_router
+        logger.info("Successfully imported agents_router (fallback)")
+    except ImportError as e2:
+        logger.error(f"Fallback import of agents_router also failed: {e2}")
+
+try:
+    from .routes.rd_status import router as rd_status_router  
+    logger.info("Successfully imported rd_status_router")
+except ImportError as e:
+    logger.error(f"Failed to import rd_status_router: {e}")
+    try:
+        from api.routes.rd_status import router as rd_status_router
+        logger.info("Successfully imported rd_status_router (fallback)")
+    except ImportError as e2:
+        logger.error(f"Fallback import of rd_status_router also failed: {e2}")
+
+try:
+    from .routes.rd_routes import router as rd_router
+    logger.info("Successfully imported rd_router")
+except ImportError as e:
+    logger.warning(f"Failed to import rd_router (expected): {e}")
     try:
         from api.routes.rd_routes import router as rd_router
-    except ImportError:
-        rd_router = None
+        logger.info("Successfully imported rd_router (fallback)")
+    except ImportError as e2:
+        logger.warning(f"Fallback import of rd_router also failed (expected): {e2}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # WebSocket manager
 class ConnectionManager:
@@ -160,13 +186,23 @@ app.add_middleware(
 )
 
 # Include agent routes
-app.include_router(agents_router)
-app.include_router(rd_status_router)
+if agents_router is not None:
+    app.include_router(agents_router)
+    logger.info("Agent routes included successfully")
+else:
+    logger.error("Agent routes not included - import failed")
+
+if rd_status_router is not None:
+    app.include_router(rd_status_router)
+    logger.info("R&D status routes included successfully")
+else:
+    logger.error("R&D status routes not included - import failed")
+
 if rd_router is not None:
     app.include_router(rd_router)
-    logger.info("R&D routes loaded successfully")
+    logger.info("R&D routes included successfully")
 else:
-    logger.warning("R&D routes not loaded - import issues")
+    logger.warning("R&D routes not included - import issues (expected)")
 
 # Health check endpoint
 @app.get("/")
