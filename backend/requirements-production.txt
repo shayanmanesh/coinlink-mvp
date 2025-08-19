@@ -8,6 +8,7 @@ aiohttp==3.9.1
 slowapi==0.1.9
 redis==5.0.1
 apscheduler==3.10.4
+croniter==2.0.1
 # transformers==4.35.2
 # torch>=2.6.0
 # pandas==2.1.4

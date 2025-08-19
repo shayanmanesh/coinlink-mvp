@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Set
 agents_router = None
 rd_status_router = None
 rd_router = None
+growth_router = None
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,18 @@ except ImportError as e:
         logger.info("Successfully imported rd_router (fallback)")
     except ImportError as e2:
         logger.warning(f"Fallback import of rd_router also failed (expected): {e2}")
+
+# Import Growth Engine routes
+try:
+    from ..growth.api_routes import growth_router
+    logger.info("Successfully imported growth_router")
+except ImportError as e:
+    logger.error(f"Failed to import growth_router: {e}")
+    try:
+        from growth.api_routes import growth_router
+        logger.info("Successfully imported growth_router (fallback)")
+    except ImportError as e2:
+        logger.error(f"Fallback import of growth_router also failed: {e2}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -140,6 +153,34 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"R&D scheduler initialization failed: {e}")
     
+    # Initialize Growth Engine system
+    try:
+        from ..growth.growth_interface import initialize_growth_agents
+        from ..growth.growth_scheduler import growth_scheduler
+        from ..growth.growth_notifications import growth_notification_system
+        
+        # Initialize growth agents
+        growth_agents = await initialize_growth_agents()
+        logger.info(f"Growth Engine initialized with {len(growth_agents.agents)} agents")
+        
+        # Start notification services
+        await growth_notification_system.start_notification_services()
+        logger.info("Growth notification services started")
+        
+        # Start growth scheduler
+        await growth_scheduler.start_scheduler()
+        logger.info("Growth scheduler started with ultra-aggressive sprint automation")
+        
+        # Start growth monitoring system
+        from ..growth.monitoring_dashboard import growth_engine_monitor
+        await growth_engine_monitor.start_monitoring()
+        logger.info("Growth monitoring system started")
+        
+        logger.info("🚀 Growth Engine fully operational - ready for explosive growth!")
+        
+    except Exception as e:
+        logger.warning(f"Growth Engine initialization failed: {e}")
+    
     yield
     
     # Shutdown
@@ -153,6 +194,23 @@ async def lifespan(app: FastAPI):
             logger.info("R&D scheduler stopped successfully")
     except Exception as e:
         logger.warning(f"Error stopping R&D scheduler: {e}")
+    
+    # Stop Growth Engine system
+    try:
+        from ..growth.growth_scheduler import growth_scheduler
+        from ..growth.monitoring_dashboard import growth_engine_monitor
+        
+        # Stop monitoring first
+        if growth_engine_monitor.monitoring_active:
+            await growth_engine_monitor.stop_monitoring()
+            logger.info("Growth monitoring stopped successfully")
+        
+        # Stop scheduler
+        if growth_scheduler.is_running:
+            await growth_scheduler.stop_scheduler()
+            logger.info("Growth scheduler stopped successfully")
+    except Exception as e:
+        logger.warning(f"Error stopping Growth Engine: {e}")
     
     # Stop agent monitoring
     try:
@@ -203,6 +261,13 @@ if rd_router is not None:
     logger.info("R&D routes included successfully")
 else:
     logger.warning("R&D routes not included - import issues (expected)")
+
+# Include Growth Engine routes
+if growth_router is not None:
+    app.include_router(growth_router)
+    logger.info("Growth Engine routes included successfully")
+else:
+    logger.error("Growth Engine routes not included - import failed")
 
 # Health check endpoint
 @app.get("/")
